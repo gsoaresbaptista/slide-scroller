@@ -308,6 +308,9 @@ def cmd_slide(args):
                         new_slide["messages"] = ["# Vazio"]
 
                     new_slide["title"] = args.title or "Info"
+
+                    if hasattr(args, "text_align") and args.text_align:
+                        new_slide["text_align"] = args.text_align
                 case "deadline":
                     new_slide["date"] = args.date or datetime.now().isoformat()
                     new_slide["title"] = args.title or "Deadline"
@@ -612,6 +615,13 @@ def main():
         "--content",
         action="append",
         help="Text content (can be used multiple times for rotating content items).",
+    )
+    grp_content.add_argument(
+        "--text-align",
+        choices=["center", "left"],
+        default="center",
+        dest="text_align",
+        help="Text alignment: 'center' (default) or 'left'.",
     )
     grp_content.add_argument(
         "--date", help="Target date in ISO format YYYY-MM-DD (Deadline slides only)."

@@ -1,0 +1,36 @@
+{
+    "classes": {
+        "Geral": {
+            "active_slides": [
+                {
+                    "type": "text",
+                    "duration": 30,
+                    "title": "Formulário de Fourier",
+                    "text_align": "center",
+                    "messages": [
+                        "# Formulário de Fourier\n\n| Função | Transformada |\n|--------|-------------|\n| $f'(t)$ | $j\\omega F(\\omega)$ |\n| $\\int_{-\\infty}^{t} f(x)dx$ | $\\frac{1}{j\\omega}F(\\omega)$ |\n| $e^{-jat}f(t)$ | $F(\\omega - a)$ |\n| $e^{jat}$ | $2\\pi\\delta(\\omega - a)$ |",
+                        "# Formulário de Fourier (cont.)\n\n| Função | Transformada |\n|--------|-------------|\n| $(-jt)^n f(t)$ | $F^{(n)}(\\omega)$ |\n| $f(at)$ | $\\frac{1}{a}F(\\frac{\\omega}{a})$ |\n| $f(t-a)$ | $e^{-ja\\omega}F(\\omega)$ |"
+                    ]
+                }
+            ],
+            "notices": [],
+            "deadlines": [],
+            "chart_type": "bar",
+            "chart_data": []
+        }
+    },
+    "global_config": {
+        "current_class_id": "Geral",
+        "always_on_top": true,
+        "visuals": {
+            "font_family": "Segoe UI",
+            "font_size": 16
+        },
+        "border": {
+            "color": "#ffffff",
+            "roughness": 2.5,
+            "radius": 20,
+            "animate": false
+        }
+    }
+}

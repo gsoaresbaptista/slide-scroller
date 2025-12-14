@@ -1,0 +1,30 @@
+{
+    "classes": {
+        "Geral": {
+            "active_slides": [
+                {
+                    "type": "chart",
+                    "duration": 10
+                }
+            ],
+            "notices": [],
+            "deadlines": [],
+            "chart_type": "bar",
+            "chart_data": []
+        }
+    },
+    "global_config": {
+        "current_class_id": "Geral",
+        "always_on_top": true,
+        "visuals": {
+            "font_family": "Segoe UI",
+            "font_size": 16
+        },
+        "border": {
+            "color": "#ffffff",
+            "roughness": 2.5,
+            "radius": 20,
+            "animate": false
+        }
+    }
+}
