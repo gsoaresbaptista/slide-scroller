@@ -384,7 +384,7 @@ class SlideScrollerApp(QWidget):
             self.timer_label.setStyleSheet("background: transparent;")
 
             self.timer_label.resize(
-                80, 45
+                90, 45
             )  # Increased height for rough border breathing room
 
             self.timer_label.move(
