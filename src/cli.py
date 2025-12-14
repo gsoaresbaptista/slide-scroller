@@ -269,17 +269,43 @@ def cmd_slide(args):
                 s["date"] = args.date
 
             print(f"Edited slide {idx}.")
+        case "list":
+            if not slides:
+                print("No slides configured.")
+            else:
+                print(f"Total slides: {len(slides)}\n")
+                for i, s in enumerate(slides):
+                    stype = s.get("type", "unknown")
+                    duration = s.get("duration", 10)
+                    info = []
 
+                    if stype == "web":
+                        info.append(f"URL: {s.get('url')}")
+                    elif stype == "text":
+                        info.append(f"Title: {s.get('title')}")
+                        info.append(f"Content: {s.get('content')}")
+                    elif stype == "deadline":
+                        info.append(f"Title: {s.get('title')}")
+                        info.append(f"Date: {s.get('date')}")
+
+                    state_str = ""
+                    if cls_data.get("state", {}).get("locked_slide") == i:
+                        state_str = " [LOCKED]"
+
+                    print(f"[{i}] {stype.upper()} ({duration}s){state_str}")
+                    for line in info:
+                        print(f"    - {line}")
+                    print("")
     save_data(data)
 
 
 class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
     """Custom help formatter with colors."""
-    
+
     def _format_action_invocation(self, action):
         if not action.option_strings:
             return super()._format_action_invocation(action)
-        
+
         # Colorize flags (e.g. -h, --help) in yellow
         default = super()._format_action_invocation(action)
         return f"\033[93m{default}\033[0m"
@@ -297,7 +323,7 @@ class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
 def main():
     parser = argparse.ArgumentParser(
         description="\033[1mSlide Scroller Management CLI\033[0m",
-        formatter_class=ColoredHelpFormatter
+        formatter_class=ColoredHelpFormatter,
     )
     subparsers = parser.add_subparsers(
         dest="command", required=True, help="Command to execute"
@@ -305,167 +331,182 @@ def main():
 
     # Launch
     p_launch = subparsers.add_parser(
-        "launch", 
+        "launch",
         help="Launch the application detached.",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py launch
-"""
+""",
     )
     p_launch.set_defaults(func=cmd_launch)
 
     # Close
     p_close = subparsers.add_parser(
-        "close", 
+        "close",
         help="Close the running application.",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py close
-"""
+""",
     )
     p_close.set_defaults(func=cmd_close)
 
     # Ghost
     p_ghost = subparsers.add_parser(
-        "ghost", 
+        "ghost",
         help="Toggle Ghost Mode (Click-through).",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py ghost
-"""
+""",
     )
     p_ghost.set_defaults(func=cmd_ghost)
 
     # Border
     p_border = subparsers.add_parser(
-        "border", 
+        "border",
         help="Manage visual border effects.",
-        formatter_class=ColoredHelpFormatter
+        formatter_class=ColoredHelpFormatter,
     )
     border_subs = p_border.add_subparsers(dest="action", required=True)
 
     # Border Set
     p_border_set = border_subs.add_parser(
-        "set", 
+        "set",
         help="Set roughness value",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py border set --val 1.0    # Default roughness
   uv run src/cli.py border set --val 2.5    # Rougher border
-"""
+""",
     )
-    p_border_set.add_argument("--val", required=True, type=float, help="Roughness value")
+    p_border_set.add_argument(
+        "--val", required=True, type=float, help="Roughness value"
+    )
 
     # Border Radius
     p_border_radius = border_subs.add_parser(
-        "radius", 
+        "radius",
         help="Set border radius",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py border radius --val 10  # Standard rounded corners
   uv run src/cli.py border radius --val 0   # Sharp corners
-"""
+""",
     )
-    p_border_radius.add_argument("--val", required=True, type=float, help="Radius value")
+    p_border_radius.add_argument(
+        "--val", required=True, type=float, help="Radius value"
+    )
 
     # Border Animation
     p_border_anim = border_subs.add_parser(
-        "animation", 
+        "animation",
         help="Toggle animation",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py border animation --state on
   uv run src/cli.py border animation --state off
-"""
+""",
     )
-    p_border_anim.add_argument("--state", required=True, choices=["on", "off"], help="Animation state")
+    p_border_anim.add_argument(
+        "--state", required=True, choices=["on", "off"], help="Animation state"
+    )
 
     # Border Show
-    border_subs.add_parser("show", help="Show current border settings", formatter_class=ColoredHelpFormatter)
+    border_subs.add_parser(
+        "show",
+        help="Show current border settings",
+        formatter_class=ColoredHelpFormatter,
+    )
 
     p_border.set_defaults(func=cmd_border)
 
     # Bar
     p_bar = subparsers.add_parser(
-        "bar", 
-        help="Manage chart bar values.",
-        formatter_class=ColoredHelpFormatter
+        "bar", help="Manage chart bar values.", formatter_class=ColoredHelpFormatter
     )
     bar_subs = p_bar.add_subparsers(dest="action", required=True)
 
     # Bar Add
     p_bar_add = bar_subs.add_parser(
-        "add", 
+        "add",
         help="Add a bar value",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py bar add --val 50
   uv run src/cli.py bar add --val 12.5
-"""
+""",
     )
     p_bar_add.add_argument("--val", required=True, type=float, help="Value to add")
 
     # Bar Set
     p_bar_set = bar_subs.add_parser(
-        "set", 
+        "set",
         help="Set a bar value by ID",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py bar set --id 0 --val 100
-"""
+""",
     )
     p_bar_set.add_argument("--id", required=True, type=int, help="Index of bar")
     p_bar_set.add_argument("--val", required=True, type=float, help="New value")
 
     # Bar Remove
     p_bar_rm = bar_subs.add_parser(
-        "rm", 
+        "rm",
         help="Remove a bar by ID",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py bar rm --id 0
-"""
+""",
     )
-    p_bar_rm.add_argument("--id", required=True, type=int, help="Index of bar to remove")
+    p_bar_rm.add_argument(
+        "--id", required=True, type=int, help="Index of bar to remove"
+    )
 
     p_bar.set_defaults(func=cmd_bar)
 
     # Slide
     p_slide = subparsers.add_parser(
-        "slide", 
-        help="Manage slides.",
-        formatter_class=ColoredHelpFormatter
+        "slide", help="Manage slides.", formatter_class=ColoredHelpFormatter
     )
     slide_subs = p_slide.add_subparsers(dest="action", required=True)
 
     # Slide Lock
     p_slide_lock = slide_subs.add_parser(
-        "lock", 
+        "lock",
         help="Lock specific slide",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py slide lock --id 2
-"""
+""",
     )
     p_slide_lock.add_argument("--id", required=True, type=int, help="Slide ID")
 
     # Slide Unlock
-    slide_subs.add_parser("unlock", help="Unlock slides", formatter_class=ColoredHelpFormatter)
+    slide_subs.add_parser(
+        "unlock", help="Unlock slides", formatter_class=ColoredHelpFormatter
+    )
+
+    # Slide List
+    slide_subs.add_parser(
+        "list", help="List all slides", formatter_class=ColoredHelpFormatter
+    )
 
     # Slide Remove
     p_slide_rm = slide_subs.add_parser(
-        "rm", 
+        "rm",
         help="Remove specific slide",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py slide rm --id 1
-"""
+""",
     )
     p_slide_rm.add_argument("--id", required=True, type=int, help="Slide ID")
 
     # Slide Add
     p_slide_add = slide_subs.add_parser(
-        "add", 
+        "add",
         help="Add a new slide",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
@@ -480,9 +521,9 @@ def main():
 
   # Chart Slide (Empty)
   uv run src/cli.py slide add --type chart
-"""
+""",
     )
-    
+
     # Common Options
     p_slide_add.add_argument(
         "--type",
@@ -502,23 +543,27 @@ def main():
     # Text & Deadline Options
     grp_content = p_slide_add.add_argument_group("Text & Deadline Options")
     grp_content.add_argument("--title", help="Title header for the slide.")
-    grp_content.add_argument("--content", help="Main text content/body (Text slides only).")
-    grp_content.add_argument("--date", help="Target date in ISO format YYYY-MM-DD (Deadline slides only).")
-    
+    grp_content.add_argument(
+        "--content", help="Main text content/body (Text slides only)."
+    )
+    grp_content.add_argument(
+        "--date", help="Target date in ISO format YYYY-MM-DD (Deadline slides only)."
+    )
+
     # Rename standard "options" group to "Common Options" for clarity
     for action_group in p_slide_add._action_groups:
         if action_group.title == "options":
-             action_group.title = "Common Options"
+            action_group.title = "Common Options"
 
     # Slide Edit
     p_slide_edit = slide_subs.add_parser(
-        "edit", 
+        "edit",
         help="Edit an existing slide",
         formatter_class=ColoredHelpFormatter,
         epilog="""\033[92mExamples:\033[0m
   uv run src/cli.py slide edit --id 0 --duration 20
   uv run src/cli.py slide edit --id 1 --title "New Title"
-"""
+""",
     )
     p_slide_edit.add_argument("--id", required=True, type=int, help="Slide ID")
     p_slide_edit.add_argument("--duration", type=int, help="Duration in seconds")
@@ -539,4 +584,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
