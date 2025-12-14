@@ -28,7 +28,7 @@ class SlideScrollerApp(QWidget):
         # Write PID
         PID_FILE.write_text(str(os.getpid()))
 
-        self.is_focused_mode = False  # Init to prevent crash
+
 
         # Load initial data
         load_data()
@@ -56,6 +56,9 @@ class SlideScrollerApp(QWidget):
 
         self.stack = SlidingStackedWidget()
         self.frame_layout.addWidget(self.stack)
+
+        self.frame_layout.setContentsMargins(0, 0, 0, 0)
+        self.frame.border_path_update.connect(self.update_mask_shape)
 
         self.frame.start_animation()
 
@@ -355,34 +358,8 @@ class SlideScrollerApp(QWidget):
         if new_lock != self.locked_slide_index:
             self.set_lock_internal(new_lock)
 
-        # Focused Mode Logic
-        focused = global_conf.get("focused_mode", False)
-        if not hasattr(self, "is_focused_mode") or self.is_focused_mode != focused:
-            self.set_focused_mode(focused)
-
         self.update_overlay_pos()
 
-    def set_focused_mode(self, enabled: bool):
-        self.is_focused_mode = enabled
-
-        if enabled:
-            self.frame_layout.setContentsMargins(0, 0, 0, 0)
-            self.frame.border_path_update.connect(self.update_mask_shape)
-        else:
-            self.frame_layout.setContentsMargins(5, 5, 5, 5)
-            try:
-                self.frame.border_path_update.disconnect(self.update_mask_shape)
-            except:
-                pass
-            self.stack.clearMask()
-
-        self.update_slide_focus_state()
-
-    def update_slide_focus_state(self):
-        if self.slides_data and self.current_index < len(self.slides_data):
-            w = self.slides_data[self.current_index]["widget"]
-            if hasattr(w, "set_focused_mode"):
-                w.set_focused_mode(self.is_focused_mode)
 
     def update_mask_shape(self, path):
         region = QRegion(path.toFillPolygon().toPolygon())
@@ -439,7 +416,6 @@ class SlideScrollerApp(QWidget):
         if hasattr(cw, "start_animation"):
             cw.start_animation()
 
-        self.update_slide_focus_state()
         self.update_overlay_pos()
 
     def tick(self):

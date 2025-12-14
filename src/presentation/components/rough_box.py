@@ -61,7 +61,8 @@ class RoughBoxWidget(QWidget):
 
         # Calculate path for listeners (masking)
         if self.receivers(self.border_path_update) > 0:
-            rect = QRectF(self.rect().adjusted(2, 2, -2, -2))
+            # Increased padding to prevent clipping of the rough border
+            rect = QRectF(self.rect().adjusted(5, 5, -5, -5))
             path = RoughBoxWidget.get_rough_path(rect, self.offset, self.roughness_base)
             self.border_path_update.emit(path)
 
@@ -91,12 +92,11 @@ class RoughBoxWidget(QWidget):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        if fill:
+        if fill and not rough:
             painter.setBrush(QColor(0, 0, 0, bg_alpha))
-            # If we are filling, we also want the border to be drawn by the rough path logic if rough is True
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(rect, radius, radius)
-        else:
+        elif not fill:
             painter.setBrush(Qt.BrushStyle.NoBrush)
 
         if not rough:
@@ -122,7 +122,13 @@ class RoughBoxWidget(QWidget):
         # Rough Border Logic
         path = RoughBoxWidget.get_rough_path(rect, self.offset, roughness)
 
-        painter.setBrush(Qt.BrushStyle.NoBrush)
+        if fill:
+            painter.setBrush(QColor(0, 0, 0, bg_alpha))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawPath(path)
+        else:
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+
         pen = QPen(color, 2)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
@@ -189,7 +195,8 @@ class RoughBoxWidget(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        rect = QRectF(self.rect().adjusted(2, 2, -2, -2))
+        # Increased padding to prevent clipping
+        rect = QRectF(self.rect().adjusted(5, 5, -5, -5))
         self.draw_rough_box(
             painter, rect, fill=True, intensity=1.0, rough=True, radius=10
         )

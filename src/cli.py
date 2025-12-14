@@ -88,20 +88,6 @@ def cmd_ghost(args):
     print(f"Ghost Mode (Click-through) set to: {new_state}")
 
 
-def cmd_toggle_focus(args):
-    """Toggle Focused Mode."""
-    data = load_data()
-    if "global_config" not in data:
-        data["global_config"] = {}
-
-    current = data["global_config"].get("focused_mode", False)
-    new_state = not current
-    data["global_config"]["focused_mode"] = new_state
-
-    save_data(data)
-    print(f"Focused Mode set to: {new_state}")
-
-
 def cmd_border(args):
     """Edit visual effects."""
     data = load_data()
@@ -289,12 +275,6 @@ def main():
     # Ghost
     p_ghost = subparsers.add_parser("ghost", help="Toggle Ghost Mode (Click-through).")
     p_ghost.set_defaults(func=cmd_ghost)
-
-    # Toggle Focus
-    p_focus = subparsers.add_parser(
-        "toggle-focus", help="Toggle Focused Mode (No margins + Mask)."
-    )
-    p_focus.set_defaults(func=cmd_toggle_focus)
 
     # Border
     p_border = subparsers.add_parser("border", help="Manage visual border effects.")

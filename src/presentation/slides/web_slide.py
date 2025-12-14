@@ -25,7 +25,7 @@ class WebSlide(QWidget):
     def __init__(self):
         super().__init__()
         self.layout = QVBoxLayout(self)
-        self.default_margins = (30, 30, 30, 30)
+        self.default_margins = (0, 0, 0, 0)
         self.layout.setContentsMargins(*self.default_margins)
         self.supports_opacity = False
 
@@ -39,12 +39,6 @@ class WebSlide(QWidget):
 
         signals.update_data.connect(self.load_url)
         self.load_url()
-
-    def set_focused_mode(self, enabled: bool):
-        if enabled:
-            self.layout.setContentsMargins(0, 0, 0, 0)
-        else:
-            self.layout.setContentsMargins(*self.default_margins)
 
     def load_url(self):
         cls = get_current_class_data()
