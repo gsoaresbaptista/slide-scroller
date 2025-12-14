@@ -104,6 +104,8 @@ class SlideScrollerApp(QWidget):
             | Qt.WindowType.Tool
             | Qt.WindowType.WindowStaysOnTopHint
         )
+        if cfg.get("clickthrough", False):
+            self.flags |= Qt.WindowType.WindowTransparentForInput
         self.setWindowFlags(self.flags)
         self.setGeometry(x, y, w, h)
         self.show()
