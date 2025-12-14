@@ -19,6 +19,7 @@ from src.presentation.components.rough_box import RoughBoxWidget
 from src.presentation.components.rough_pill import RoughPillWidget
 from src.presentation.components.sliding_stacked_widget import SlidingStackedWidget
 from src.presentation.slides import TextInfoSlide, create_slide
+from src.presentation.slides.chart_slide import BarChartSlide
 
 PID_FILE = get_config_dir() / "app.pid"
 
@@ -119,6 +120,8 @@ class SlideScrollerApp(QWidget):
 
         QTimer.singleShot(0, lambda: self.move(x, y))
         QTimer.singleShot(0, lambda: self.resize(w, h))
+
+        self._last_event_ts = 0
 
     def set_lock(self, idx):
         d = load_data()
@@ -388,6 +391,35 @@ class SlideScrollerApp(QWidget):
             # Only re-dock if we are currently docked
             if self.dock_alignment != "default":
                 self.process_dock(self.dock_alignment, current_margin)
+
+        # Check for events (like inc)
+        event = global_conf.get("last_event")
+        if event:
+            ts = event.get("ts", 0)
+            if ts > self._last_event_ts:
+                self._last_event_ts = ts
+                self.process_event(event)
+
+    def process_event(self, event):
+        match event.get("type"):
+            case "inc":
+                # Find chart slide
+                chart_idx = -1
+                for i, s in enumerate(self.slides_data):
+                    if isinstance(s["widget"], BarChartSlide):
+                        chart_idx = i
+                        break
+
+                if chart_idx != -1:
+                    # Switch if needed
+                    if self.current_index != chart_idx:
+                        self.current_index = chart_idx
+                        self.stack.slide_to(chart_idx)
+                        self.update_view()
+
+                    # Trigger effect
+                    w = self.slides_data[chart_idx]["widget"]
+                    w.trigger_increment_effect(event.get("bar_id"), event.get("val"))
 
     def process_dock(self, pos, margin):
         screen = self.screen()

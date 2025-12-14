@@ -128,6 +128,25 @@ def cmd_ghost(args):
     cmd_launch(args)
 
 
+def cmd_inc(args):
+    """Increment chart bar value with animation."""
+    import time
+
+    data = load_data()
+    if "global_config" not in data:
+        data["global_config"] = {}
+
+    # Write event for main window to pick up
+    data["global_config"]["last_event"] = {
+        "type": "inc",
+        "bar_id": args.id,
+        "val": args.val,
+        "ts": time.time(),
+    }
+    save_data(data)
+    print(f"Triggered increment for bar {args.id} by {args.val}")
+
+
 def cmd_invert(args):
     """Toggle color inversion (black <-> white)."""
     data = load_data()
@@ -600,6 +619,16 @@ def main():
         formatter_class=ColoredHelpFormatter,
     )
     p_ghost.set_defaults(func=cmd_ghost)
+
+    # Inc (Increment)
+    p_inc = subparsers.add_parser(
+        "inc",
+        help="Increment bar value with animation",
+        formatter_class=ColoredHelpFormatter,
+    )
+    p_inc.add_argument("--id", required=True, type=int, help="Bar ID to increment")
+    p_inc.add_argument("--val", required=True, type=float, help="Value to add")
+    p_inc.set_defaults(func=cmd_inc)
 
     # Invert
     p_invert = subparsers.add_parser(
