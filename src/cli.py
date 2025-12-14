@@ -137,33 +137,25 @@ def cmd_border(args):
     if "visuals" not in data["global_config"]:
         data["global_config"]["visuals"] = {}
 
-    if args.action == "set":
-        if args.val is not None:
+    match args.action:
+        case "set":
             data["global_config"]["visuals"]["rough_slide"] = float(args.val)
             print(f"Border roughness set to: {args.val}")
             save_data(data)
-        else:
-            print("Error: --val required for set")
-    elif args.action == "radius":
-        if args.val is not None:
+        case "radius":
             data["global_config"]["visuals"]["border_radius"] = float(args.val)
             print(f"Border radius set to: {args.val}")
             save_data(data)
-        else:
-            print("Error: --val required for radius")
-    elif args.action == "animation":
-        if args.state is not None:
+        case "animation":
             val = args.state.lower() == "on"
             data["global_config"]["visuals"]["animation_enabled"] = val
             print(f"Border animation set to: {val}")
             save_data(data)
-        else:
-            print("Error: --state (on/off) required for animation")
-    else:
-        vis = data.get("global_config", {}).get("visuals", {})
-        print(f"Current roughness: {vis.get('rough_slide', 1.0)}")
-        print(f"Current radius: {vis.get('border_radius', 10.0)}")
-        print(f"Animation enabled: {vis.get('animation_enabled', True)}")
+        case "show":
+            vis = data.get("global_config", {}).get("visuals", {})
+            print(f"Current roughness: {vis.get('rough_slide', 1.0)}")
+            print(f"Current radius: {vis.get('border_radius', 10.0)}")
+            print(f"Animation enabled: {vis.get('animation_enabled', True)}")
 
 
 def get_active_class(data):
@@ -184,32 +176,24 @@ def cmd_bar(args):
 
     bars = cls_data["bars"]
 
-    if args.action == "add":
-        if args.val is None:
-            print("Error: Value required for add")
-            return
-        bars.append(float(args.val))
-        print(f"Added bar value: {args.val}")
-    elif args.action == "set":
-        if args.id is None or args.val is None:
-            print("Error: ID and Value required for set")
-            return
-        idx = int(args.id)
-        if 0 <= idx < len(bars):
-            bars[idx] = float(args.val)
-            print(f"Set bar {idx} to {args.val}")
-        else:
-            print(f"Error: Index {idx} out of range")
-    elif args.action == "rm":
-        if args.id is None:
-            print("Error: ID required for rm")
-            return
-        idx = int(args.id)
-        if 0 <= idx < len(bars):
-            val = bars.pop(idx)
-            print(f"Removed bar {idx} (val: {val})")
-        else:
-            print(f"Error: Index {idx} out of range")
+    match args.action:
+        case "add":
+            bars.append(float(args.val))
+            print(f"Added bar value: {args.val}")
+        case "set":
+            idx = int(args.id)
+            if 0 <= idx < len(bars):
+                bars[idx] = float(args.val)
+                print(f"Set bar {idx} to {args.val}")
+            else:
+                print(f"Error: Index {idx} out of range")
+        case "rm":
+            idx = int(args.id)
+            if 0 <= idx < len(bars):
+                val = bars.pop(idx)
+                print(f"Removed bar {idx} (val: {val})")
+            else:
+                print(f"Error: Index {idx} out of range")
 
     save_data(data)
 
@@ -225,158 +209,334 @@ def cmd_slide(args):
 
     slides = cls_data["active_slides"]
 
-    if args.action == "lock":
-        if args.id is None:
-            print("Error: ID required for lock")
-            return
-        idx = int(args.id)
-        if 0 <= idx < len(slides):
-            cls_data["state"]["locked_slide"] = idx
-            print(f"Locked on slide {idx}")
-        else:
-            print(f"Error: Index {idx} out of range")
+    match args.action:
+        case "lock":
+            idx = int(args.id)
+            if 0 <= idx < len(slides):
+                cls_data["state"]["locked_slide"] = idx
+                print(f"Locked on slide {idx}")
+            else:
+                print(f"Error: Index {idx} out of range")
+        case "unlock":
+            cls_data["state"]["locked_slide"] = -1
+            print("Unlocked slides")
+        case "rm":
+            idx = int(args.id)
+            if 0 <= idx < len(slides):
+                s = slides.pop(idx)
+                print(f"Removed slide {idx} ({s.get('type')})")
+            else:
+                print(f"Error: Index {idx} out of range")
+        case "add":
+            new_slide = {"type": args.type, "duration": args.duration}
 
-    elif args.action == "unlock":
-        cls_data["state"]["locked_slide"] = -1
-        print("Unlocked slides")
+            match args.type:
+                case "web":
+                    new_slide["url"] = args.url or "about:blank"
+                    if args.zoom:
+                        new_slide["zoom"] = float(args.zoom)
+                case "text":
+                    new_slide["content"] = args.content or "No Content"
+                    new_slide["title"] = args.title or "Info"
+                case "deadline":
+                    new_slide["date"] = args.date or datetime.now().isoformat()
+                    new_slide["title"] = args.title or "Deadline"
+                case "chart":
+                    pass
 
-    elif args.action == "rm":
-        if args.id is None:
-            print("Error: ID required for rm")
-            return
-        idx = int(args.id)
-        if 0 <= idx < len(slides):
-            s = slides.pop(idx)
-            print(f"Removed slide {idx} ({s.get('type')})")
-        else:
-            print(f"Error: Index {idx} out of range")
+            slides.append(new_slide)
+            print(f"Added new {args.type} slide.")
+        case "edit":
+            idx = int(args.id)
+            if not (0 <= idx < len(slides)):
+                print(f"Error: Index {idx} out of range")
+                return
 
-    elif args.action == "add":
-        if not args.type:
-            print("Error: Type required for add")
-            return
+            s = slides[idx]
+            if args.duration is not None:
+                s["duration"] = args.duration
 
-        new_slide = {"type": args.type, "duration": args.duration}
+            # Generic updates
+            if hasattr(args, "url") and args.url is not None:
+                s["url"] = args.url
+            if hasattr(args, "zoom") and args.zoom is not None:
+                s["zoom"] = float(args.zoom)
+            if hasattr(args, "content") and args.content is not None:
+                s["content"] = args.content
+            if hasattr(args, "title") and args.title is not None:
+                s["title"] = args.title
+            if hasattr(args, "date") and args.date is not None:
+                s["date"] = args.date
 
-        if args.type == "web":
-            new_slide["url"] = args.url or "about:blank"
-            if args.zoom:
-                new_slide["zoom"] = float(args.zoom)
-        elif args.type == "text":
-            new_slide["content"] = args.content or "No Content"
-            new_slide["title"] = args.title or "Info"
-        elif args.type == "deadline":
-            new_slide["date"] = args.date or datetime.now().isoformat()
-            new_slide["title"] = args.title or "Deadline"
-        elif args.type == "chart":
-            pass  # No specific extras yet
-
-        slides.append(new_slide)
-        print(f"Added new {args.type} slide.")
-
-    elif args.action == "edit":
-        if args.id is None:
-            print("Error: ID required for edit")
-            return
-        idx = int(args.id)
-        if not (0 <= idx < len(slides)):
-            print(f"Error: Index {idx} out of range")
-            return
-
-        s = slides[idx]
-        if args.duration is not None:
-            s["duration"] = args.duration
-
-        # Generic updates based on args presence
-        if args.url is not None:
-            s["url"] = args.url
-        if args.zoom is not None:
-            s["zoom"] = float(args.zoom)
-        if args.content is not None:
-            s["content"] = args.content
-        if args.title is not None:
-            s["title"] = args.title
-        if args.date is not None:
-            s["date"] = args.date
-
-        print(f"Edited slide {idx}.")
+            print(f"Edited slide {idx}.")
 
     save_data(data)
 
 
+class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Custom help formatter with colors."""
+    
+    def _format_action_invocation(self, action):
+        if not action.option_strings:
+            return super()._format_action_invocation(action)
+        
+        # Colorize flags (e.g. -h, --help) in yellow
+        default = super()._format_action_invocation(action)
+        return f"\033[93m{default}\033[0m"
+
+    def _format_usage(self, usage, actions, groups, prefix):
+        # Colorize usage prefix
+        usage_text = super()._format_usage(usage, actions, groups, prefix)
+        return usage_text.replace("usage:", "\033[96musage:\033[0m")
+
+    def start_section(self, heading):
+        # Colorize section headers (e.g. "options:", "positional arguments:") in Cyan
+        super().start_section(f"\033[96m{heading}\033[0m")
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Slide Scroller Management CLI")
+    parser = argparse.ArgumentParser(
+        description="\033[1mSlide Scroller Management CLI\033[0m",
+        formatter_class=ColoredHelpFormatter
+    )
     subparsers = parser.add_subparsers(
         dest="command", required=True, help="Command to execute"
     )
 
     # Launch
-    p_launch = subparsers.add_parser("launch", help="Launch the application detached.")
+    p_launch = subparsers.add_parser(
+        "launch", 
+        help="Launch the application detached.",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py launch
+"""
+    )
     p_launch.set_defaults(func=cmd_launch)
 
     # Close
-    p_close = subparsers.add_parser("close", help="Close the running application.")
+    p_close = subparsers.add_parser(
+        "close", 
+        help="Close the running application.",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py close
+"""
+    )
     p_close.set_defaults(func=cmd_close)
 
     # Ghost
-    p_ghost = subparsers.add_parser("ghost", help="Toggle Ghost Mode (Click-through).")
+    p_ghost = subparsers.add_parser(
+        "ghost", 
+        help="Toggle Ghost Mode (Click-through).",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py ghost
+"""
+    )
     p_ghost.set_defaults(func=cmd_ghost)
 
     # Border
-    p_border = subparsers.add_parser("border", help="Manage visual border effects.")
-    p_border.add_argument(
-        "action", choices=["set", "radius", "animation"], help="Action to perform"
+    p_border = subparsers.add_parser(
+        "border", 
+        help="Manage visual border effects.",
+        formatter_class=ColoredHelpFormatter
     )
-    p_border.add_argument("--val", help="Value to set (for 'set' action). Float.")
-    p_border.add_argument(
-        "--state",
-        choices=["on", "off"],
-        help="Animation state (for 'animation' action)",
+    border_subs = p_border.add_subparsers(dest="action", required=True)
+
+    # Border Set
+    p_border_set = border_subs.add_parser(
+        "set", 
+        help="Set roughness value",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py border set --val 1.0    # Default roughness
+  uv run src/cli.py border set --val 2.5    # Rougher border
+"""
     )
+    p_border_set.add_argument("--val", required=True, type=float, help="Roughness value")
+
+    # Border Radius
+    p_border_radius = border_subs.add_parser(
+        "radius", 
+        help="Set border radius",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py border radius --val 10  # Standard rounded corners
+  uv run src/cli.py border radius --val 0   # Sharp corners
+"""
+    )
+    p_border_radius.add_argument("--val", required=True, type=float, help="Radius value")
+
+    # Border Animation
+    p_border_anim = border_subs.add_parser(
+        "animation", 
+        help="Toggle animation",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py border animation --state on
+  uv run src/cli.py border animation --state off
+"""
+    )
+    p_border_anim.add_argument("--state", required=True, choices=["on", "off"], help="Animation state")
+
+    # Border Show
+    border_subs.add_parser("show", help="Show current border settings", formatter_class=ColoredHelpFormatter)
+
     p_border.set_defaults(func=cmd_border)
 
     # Bar
-    p_bar = subparsers.add_parser("bar", help="Manage chart bar values.")
-    p_bar.add_argument(
-        "action",
-        choices=["add", "set", "rm"],
-        help="Action: add value, set index value, rm index",
+    p_bar = subparsers.add_parser(
+        "bar", 
+        help="Manage chart bar values.",
+        formatter_class=ColoredHelpFormatter
     )
-    p_bar.add_argument("id", nargs="?", help="Index (for set/rm)")
-    p_bar.add_argument("val", nargs="?", help="Value (for add/set)")
+    bar_subs = p_bar.add_subparsers(dest="action", required=True)
+
+    # Bar Add
+    p_bar_add = bar_subs.add_parser(
+        "add", 
+        help="Add a bar value",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py bar add --val 50
+  uv run src/cli.py bar add --val 12.5
+"""
+    )
+    p_bar_add.add_argument("--val", required=True, type=float, help="Value to add")
+
+    # Bar Set
+    p_bar_set = bar_subs.add_parser(
+        "set", 
+        help="Set a bar value by ID",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py bar set --id 0 --val 100
+"""
+    )
+    p_bar_set.add_argument("--id", required=True, type=int, help="Index of bar")
+    p_bar_set.add_argument("--val", required=True, type=float, help="New value")
+
+    # Bar Remove
+    p_bar_rm = bar_subs.add_parser(
+        "rm", 
+        help="Remove a bar by ID",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py bar rm --id 0
+"""
+    )
+    p_bar_rm.add_argument("--id", required=True, type=int, help="Index of bar to remove")
+
     p_bar.set_defaults(func=cmd_bar)
 
     # Slide
-    p_slide = subparsers.add_parser("slide", help="Manage slides.")
-    p_slide.add_argument(
-        "action",
-        choices=["add", "rm", "edit", "lock", "unlock"],
-        help="Action to perform",
+    p_slide = subparsers.add_parser(
+        "slide", 
+        help="Manage slides.",
+        formatter_class=ColoredHelpFormatter
     )
-    p_slide.add_argument("id", nargs="?", help="Index (for rm/edit/lock)")
+    slide_subs = p_slide.add_subparsers(dest="action", required=True)
 
-    # Slide Add/Edit Options
-    p_slide.add_argument(
+    # Slide Lock
+    p_slide_lock = slide_subs.add_parser(
+        "lock", 
+        help="Lock specific slide",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py slide lock --id 2
+"""
+    )
+    p_slide_lock.add_argument("--id", required=True, type=int, help="Slide ID")
+
+    # Slide Unlock
+    slide_subs.add_parser("unlock", help="Unlock slides", formatter_class=ColoredHelpFormatter)
+
+    # Slide Remove
+    p_slide_rm = slide_subs.add_parser(
+        "rm", 
+        help="Remove specific slide",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py slide rm --id 1
+"""
+    )
+    p_slide_rm.add_argument("--id", required=True, type=int, help="Slide ID")
+
+    # Slide Add
+    p_slide_add = slide_subs.add_parser(
+        "add", 
+        help="Add a new slide",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  # Web Slide
+  uv run src/cli.py slide add --type web --url "https://google.com" --zoom 1.2
+
+  # Text Slide
+  uv run src/cli.py slide add --type text --title "Morning Meeting" --content "Discuss Q3 goals."
+
+  # Deadline Slide
+  uv run src/cli.py slide add --type deadline --title "Project Due" --date "2025-12-31"
+
+  # Chart Slide (Empty)
+  uv run src/cli.py slide add --type chart
+"""
+    )
+    
+    # Common Options
+    p_slide_add.add_argument(
         "--type",
+        required=True,
         choices=["web", "text", "deadline", "chart"],
-        help="Type of slide (for add)",
+        help="Type of slide to add.",
     )
-    p_slide.add_argument(
-        "--duration", type=int, default=10, help="Duration in seconds (default 10)"
+    p_slide_add.add_argument(
+        "--duration", type=int, default=10, help="Duration in seconds (default: 10)."
     )
 
-    # Specifics
-    p_slide.add_argument("--url", help="URL for web slide")
-    p_slide.add_argument("--zoom", help="Zoom level for web slide")
-    p_slide.add_argument("--content", help="Content for text/notice slide")
-    p_slide.add_argument("--title", help="Title for text/deadline slide")
-    p_slide.add_argument("--date", help="Date for deadline slide (ISO format)")
+    # Web Slide Options
+    grp_web = p_slide_add.add_argument_group("Web Slide Options")
+    grp_web.add_argument("--url", help="URL to display (e.g. https://google.com).")
+    grp_web.add_argument("--zoom", help="Zoom level for the page (e.g. 1.0, 1.5).")
+
+    # Text & Deadline Options
+    grp_content = p_slide_add.add_argument_group("Text & Deadline Options")
+    grp_content.add_argument("--title", help="Title header for the slide.")
+    grp_content.add_argument("--content", help="Main text content/body (Text slides only).")
+    grp_content.add_argument("--date", help="Target date in ISO format YYYY-MM-DD (Deadline slides only).")
+    
+    # Rename standard "options" group to "Common Options" for clarity
+    for action_group in p_slide_add._action_groups:
+        if action_group.title == "options":
+             action_group.title = "Common Options"
+
+    # Slide Edit
+    p_slide_edit = slide_subs.add_parser(
+        "edit", 
+        help="Edit an existing slide",
+        formatter_class=ColoredHelpFormatter,
+        epilog="""\033[92mExamples:\033[0m
+  uv run src/cli.py slide edit --id 0 --duration 20
+  uv run src/cli.py slide edit --id 1 --title "New Title"
+"""
+    )
+    p_slide_edit.add_argument("--id", required=True, type=int, help="Slide ID")
+    p_slide_edit.add_argument("--duration", type=int, help="Duration in seconds")
+    p_slide_edit.add_argument("--url", help="URL (web)")
+    p_slide_edit.add_argument("--zoom", help="Zoom (web)")
+    p_slide_edit.add_argument("--content", help="Content (text)")
+    p_slide_edit.add_argument("--title", help="Title (text/deadline)")
+    p_slide_edit.add_argument("--date", help="Date (deadline)")
 
     p_slide.set_defaults(func=cmd_slide)
 
     args = parser.parse_args()
-    args.func(args)
+    if hasattr(args, "func"):
+        args.func(args)
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
     main()
+
