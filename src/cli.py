@@ -224,12 +224,7 @@ def cmd_slide_content(args):
 
     match args.content_action:
         case "add":
-            new_msg = {
-                "content": args.content,
-                "duration": args.content_duration
-                if args.content_duration
-                else slide.get("duration", 10),
-            }
+            new_msg = args.content
             messages.append(new_msg)
             print(
                 f"Added content item to slide {slide_idx} (now {len(messages)} items)"
@@ -245,10 +240,7 @@ def cmd_slide_content(args):
         case "edit":
             content_idx = args.content_id
             if 0 <= content_idx < len(messages):
-                if args.content:
-                    messages[content_idx]["content"] = args.content
-                if args.content_duration:
-                    messages[content_idx]["duration"] = args.content_duration
+                messages[content_idx] = args.content
                 print(f"Edited content item {content_idx} in slide {slide_idx}")
             else:
                 print(f"Error: Content ID {content_idx} out of range")
@@ -257,12 +249,16 @@ def cmd_slide_content(args):
             if not messages:
                 print(f"Slide {slide_idx} has no content items")
             else:
-                print(f"Slide {slide_idx} - {len(messages)} content item(s):\n")
+                item_duration = slide.get("duration", 10) / len(messages)
+                print(
+                    f"Slide {slide_idx} - {len(messages)} content item(s) ({item_duration:.1f}s each):\n"
+                )
                 for i, msg in enumerate(messages):
-                    preview = msg.get("content", "")[:60]
-                    if len(msg.get("content", "")) > 60:
+                    content = msg if isinstance(msg, str) else msg.get("content", "")
+                    preview = content[:60]
+                    if len(content) > 60:
                         preview += "..."
-                    print(f"[{i}] ({msg.get('duration')}s) {preview}")
+                    print(f"[{i}] {preview}")
 
     save_data(data)
 
@@ -305,27 +301,11 @@ def cmd_slide(args):
                     if args.zoom:
                         new_slide["zoom"] = float(args.zoom)
                 case "text":
-                    # Support multiple content items
+                    # Store content items as simple strings
                     if args.content:
-                        # Create messages list with individual durations
-                        messages = []
-                        for i, content in enumerate(args.content):
-                            # Use content_duration if provided, otherwise use slide duration
-                            item_duration = (
-                                args.content_duration[i]
-                                if args.content_duration
-                                and i < len(args.content_duration)
-                                else args.duration
-                            )
-                            messages.append(
-                                {"content": content, "duration": item_duration}
-                            )
-                        new_slide["messages"] = messages
+                        new_slide["messages"] = args.content
                     else:
-                        # Default single message
-                        new_slide["messages"] = [
-                            {"content": "# Vazio", "duration": args.duration}
-                        ]
+                        new_slide["messages"] = ["# Vazio"]
 
                     new_slide["title"] = args.title or "Info"
                 case "deadline":
@@ -366,14 +346,7 @@ def cmd_slide(args):
                         if "messages" in s:
                             content_idx = args.content_id
                             if 0 <= content_idx < len(s["messages"]):
-                                s["messages"][content_idx]["content"] = args.content
-                                if (
-                                    hasattr(args, "content_duration")
-                                    and args.content_duration is not None
-                                ):
-                                    s["messages"][content_idx]["duration"] = (
-                                        args.content_duration
-                                    )
+                                s["messages"][content_idx] = args.content
                                 print(
                                     f"Edited content item {content_idx} in slide {idx}."
                                 )
@@ -385,9 +358,7 @@ def cmd_slide(args):
                             return
                     else:
                         # Replace all content with single item (backward compatibility)
-                        s["messages"] = [
-                            {"content": args.content, "duration": s.get("duration", 10)}
-                        ]
+                        s["messages"] = [args.content]
                         print(f"Replaced all content in slide {idx}.")
                 else:
                     # For non-text slides, keep old behavior
@@ -412,12 +383,18 @@ def cmd_slide(args):
                         # Show multiple content items if available
                         if "messages" in s:
                             info.append(f"Content items: {len(s['messages'])}")
+                            item_duration = s.get("duration", 10) / len(s["messages"])
                             for ci, msg in enumerate(s["messages"]):
-                                preview = msg.get("content", "")[:50]
-                                if len(msg.get("content", "")) > 50:
+                                content = (
+                                    msg
+                                    if isinstance(msg, str)
+                                    else msg.get("content", "")
+                                )
+                                preview = content[:50]
+                                if len(content) > 50:
                                     preview += "..."
                                 info.append(
-                                    f"  [{ci}] {preview} ({msg.get('duration', duration)}s)"
+                                    f"  [{ci}] {preview} ({item_duration:.1f}s)"
                                 )
                         else:
                             # Backward compatibility
@@ -637,12 +614,6 @@ def main():
         help="Text content (can be used multiple times for rotating content items).",
     )
     grp_content.add_argument(
-        "--content-duration",
-        action="append",
-        type=int,
-        help="Duration for each content item (optional, defaults to slide duration).",
-    )
-    grp_content.add_argument(
         "--date", help="Target date in ISO format YYYY-MM-DD (Deadline slides only)."
     )
 
@@ -667,11 +638,6 @@ def main():
         type=int,
         help="Specific content item ID to edit (text slides only)",
     )
-    p_slide_edit.add_argument(
-        "--content-duration",
-        type=int,
-        help="Duration for specific content item (text slides only)",
-    )
     p_slide_edit.add_argument("--title", help="Title (text/deadline)")
     p_slide_edit.add_argument("--date", help="Date (deadline)")
 
@@ -691,9 +657,6 @@ def main():
     )
     p_content_add.add_argument("--slide-id", required=True, type=int, help="Slide ID")
     p_content_add.add_argument("--content", required=True, help="Content text")
-    p_content_add.add_argument(
-        "--content-duration", type=int, help="Duration in seconds"
-    )
 
     # Content Remove
     p_content_rm = content_subs.add_parser(
@@ -716,10 +679,7 @@ def main():
     p_content_edit.add_argument(
         "--content-id", required=True, type=int, help="Content item ID"
     )
-    p_content_edit.add_argument("--content", help="New content text")
-    p_content_edit.add_argument(
-        "--content-duration", type=int, help="New duration in seconds"
-    )
+    p_content_edit.add_argument("--content", required=True, help="New content text")
 
     # Content List
     p_content_list = content_subs.add_parser(

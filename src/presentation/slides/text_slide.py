@@ -22,42 +22,52 @@ class TextInfoSlide(RoughBoxWidget):
     def load_specific(self):
         d = load_data()
 
+        # Get total slide duration
+        self.total_duration = (
+            self.slide_config.get("duration", 10) if self.slide_config else 10
+        )
+
         # If we have slide_config, use it directly
         if self.slide_config:
-            # New format: messages list
+            # New format: messages list (just content strings)
             if "messages" in self.slide_config:
-                self.messages = self.slide_config["messages"]
+                self.messages = [
+                    msg.get("content", "") if isinstance(msg, dict) else msg
+                    for msg in self.slide_config["messages"]
+                ]
             # Old format: single content field (backward compatibility)
             elif "content" in self.slide_config:
-                self.messages = [
-                    {
-                        "content": self.slide_config.get("content", "# Vazio"),
-                        "duration": self.slide_config.get("duration", 5),
-                    }
-                ]
+                self.messages = [self.slide_config.get("content", "# Vazio")]
             else:
-                self.messages = [{"content": "# Vazio", "duration": 5}]
+                self.messages = ["# Vazio"]
         else:
             # Fallback to notices for backward compatibility
             cls = get_current_class_data()
-            self.messages = cls.get("notices", [])
-            if not self.messages:
-                self.messages = [{"content": "# Vazio", "duration": 5}]
+            notices = cls.get("notices", [])
+            if notices:
+                self.messages = [
+                    n.get("content", "") if isinstance(n, dict) else n for n in notices
+                ]
+            else:
+                self.messages = ["# Vazio"]
+
+        # Calculate duration per item
+        self.item_duration = (
+            self.total_duration / len(self.messages)
+            if self.messages
+            else self.total_duration
+        )
 
         vis = d.get("global_config", {}).get("visuals", {})
         self.font_family = vis.get("font_family", "Segoe UI")
         self.font_size = vis.get("font_size", 16)
 
-        self.locked_index = -1  # Don't use notices lock for active_slides
+        self.locked_index = -1
         self.update_timer()
 
     def update_timer(self):
-        if self.messages:
-            dur = self.messages[self.current_msg_index % len(self.messages)].get(
-                "duration", 5
-            )
-            if self.content_timer.isActive():
-                self.content_timer.setInterval(dur * 1000)
+        if self.content_timer.isActive():
+            self.content_timer.setInterval(int(self.item_duration * 1000))
 
     def set_lock(self, idx):
         self.locked_index = idx
@@ -75,13 +85,7 @@ class TextInfoSlide(RoughBoxWidget):
 
     def start_animation(self):
         super().start_animation()
-        dur = (
-            self.messages[self.current_msg_index % len(self.messages)].get(
-                "duration", 5
-            )
-            * 1000
-        )
-        self.content_timer.start(dur)
+        self.content_timer.start(int(self.item_duration * 1000))
 
     def stop_animation(self):
         super().stop_animation()
@@ -101,9 +105,7 @@ class TextInfoSlide(RoughBoxWidget):
         rect = QRectF(15, 15, w - 30, h - 30)
 
         doc = QTextDocument()
-        msg = self.messages[self.current_msg_index % len(self.messages)].get(
-            "content", ""
-        )
+        msg = self.messages[self.current_msg_index % len(self.messages)]
         doc.setMarkdown(msg)
         doc.setDefaultStyleSheet(
             f"body {{ color: white; font-family: '{self.font_family}'; font-size: {self.font_size}pt; text-align: center; }} h1 {{ color: #ff007f; margin:0; }} h2 {{ color: #00e5ff; }}"
