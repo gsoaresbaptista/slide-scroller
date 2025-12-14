@@ -6,13 +6,16 @@ from .web_slide import WebSlide
 # ImageSlide is not fully used yet but we can add it if needed
 
 
-def create_slide(slide_type, **kwargs):
+def create_slide(slide_type, slide_config=None, **kwargs):
+    if slide_config is None:
+        slide_config = {}
+
     if slide_type == "chart":
-        return BarChartSlide()
+        return BarChartSlide(slide_config=slide_config)
     elif slide_type == "text":
-        return TextInfoSlide()
-    elif slide_type == "deadlines":
-        return DeadlineSlide()
+        return TextInfoSlide(slide_config=slide_config)
+    elif slide_type == "deadline":
+        return DeadlineSlide(slide_config=slide_config)
     elif slide_type == "web":
-        return WebSlide()
+        return WebSlide(slide_config=slide_config)
     return None

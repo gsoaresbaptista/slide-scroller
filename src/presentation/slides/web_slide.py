@@ -22,8 +22,9 @@ from src.infrastructure.signals import signals
 
 
 class WebSlide(QWidget):
-    def __init__(self):
+    def __init__(self, slide_config=None):
         super().__init__()
+        self.slide_config = slide_config or {}
         self.layout = QVBoxLayout(self)
         self.default_margins = (0, 0, 0, 0)
         self.layout.setContentsMargins(*self.default_margins)
@@ -41,10 +42,15 @@ class WebSlide(QWidget):
         self.load_url()
 
     def load_url(self):
-        cls = get_current_class_data()
         if self.browser:
-            u = cls.get("web", {}).get("url", "about:blank")
-            zoom = cls.get("web", {}).get("zoom", 0.8)
+            # Use slide_config if available, otherwise fallback to class data
+            if self.slide_config and "url" in self.slide_config:
+                u = self.slide_config.get("url", "about:blank")
+                zoom = self.slide_config.get("zoom", 1.0)
+            else:
+                cls = get_current_class_data()
+                u = cls.get("web", {}).get("url", "about:blank")
+                zoom = cls.get("web", {}).get("zoom", 0.8)
 
             if not hasattr(self, "_last_loaded_url") or self._last_loaded_url != u:
                 self.browser.setUrl(QUrl(u))

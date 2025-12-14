@@ -167,8 +167,9 @@ class BarChartCanvas(FigureCanvas):
 
 
 class BarChartSlide(QWidget):
-    def __init__(self):
+    def __init__(self, slide_config=None):
         super().__init__()
+        self.slide_config = slide_config or {}
         self.canvas = BarChartCanvas()
         layout = QVBoxLayout(self)
 

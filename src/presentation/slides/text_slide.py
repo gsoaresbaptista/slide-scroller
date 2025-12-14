@@ -7,8 +7,9 @@ from src.presentation.components.rough_box import RoughBoxWidget
 
 
 class TextInfoSlide(RoughBoxWidget):
-    def __init__(self):
+    def __init__(self, slide_config=None):
         super().__init__()
+        self.slide_config = slide_config or {}
         self.messages = []
         self.current_msg_index = 0
         self.locked_index = -1
@@ -19,17 +20,28 @@ class TextInfoSlide(RoughBoxWidget):
         self.load_specific()
 
     def load_specific(self):
-        cls = get_current_class_data()
         d = load_data()
-        self.messages = cls.get("notices", [])
-        if not self.messages:
-            self.messages = [{"content": "# Vazio", "duration": 5}]
+
+        # If we have slide_config, use it directly
+        if self.slide_config and "content" in self.slide_config:
+            self.messages = [
+                {
+                    "content": self.slide_config.get("content", "# Vazio"),
+                    "duration": self.slide_config.get("duration", 5),
+                }
+            ]
+        else:
+            # Fallback to notices for backward compatibility
+            cls = get_current_class_data()
+            self.messages = cls.get("notices", [])
+            if not self.messages:
+                self.messages = [{"content": "# Vazio", "duration": 5}]
 
         vis = d.get("global_config", {}).get("visuals", {})
         self.font_family = vis.get("font_family", "Segoe UI")
         self.font_size = vis.get("font_size", 16)
 
-        self.locked_index = cls.get("state", {}).get("locked_notice", -1)
+        self.locked_index = -1  # Don't use notices lock for active_slides
         self.update_timer()
 
     def update_timer(self):

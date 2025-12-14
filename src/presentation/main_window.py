@@ -289,7 +289,7 @@ class SlideScrollerApp(QWidget):
             s = new_slides_config[i]
             t = s["type"]
             dur = s.get("duration", 10)
-            w = create_slide(t)
+            w = create_slide(t, slide_config=s)
             if w:
                 self.stack.addWidget(w)
                 self.slides_data.append({"widget": w, "time": dur})

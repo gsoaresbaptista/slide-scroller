@@ -17,8 +17,9 @@ class Pastel:
 
 
 class DeadlineSlide(RoughBoxWidget):
-    def __init__(self):
+    def __init__(self, slide_config=None):
         super().__init__()
+        self.slide_config = slide_config or {}
         self.deadlines = []
         # Connect to update signals
         signals.update_data.connect(self.load_specific)
@@ -27,9 +28,20 @@ class DeadlineSlide(RoughBoxWidget):
     def load_specific(self):
         cls = get_current_class_data()
         d = load_data()
-        self.deadlines = cls.get("deadlines", [])
 
-        vis = d["global_config"]["visuals"]
+        # If slide_config has date/title, create a single deadline entry
+        if self.slide_config and "date" in self.slide_config:
+            self.deadlines = [
+                {
+                    "date": self.slide_config.get("date", ""),
+                    "task": self.slide_config.get("title", "Deadline"),
+                }
+            ]
+        else:
+            # Fallback to deadlines list
+            self.deadlines = cls.get("deadlines", [])
+
+        vis = d.get("global_config", {}).get("visuals", {})
         self.font_family = vis.get("font_family", "Segoe UI")
         # Request: "Aumente a fonte" - defaulting to 18 instead of 16
         self.font_size = vis.get("font_size", 18)
