@@ -35,3 +35,4 @@ app.log
 app.pid
 *.spec
 data/    # Assuming data/ stores local runtime config which might not be needed in repo, usually good practice to ignore runtime data
+.agent

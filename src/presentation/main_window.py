@@ -44,7 +44,7 @@ class SlideScrollerApp(QWidget):
         self.resize(w, h)
 
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(0, 40, 0, 0)
+        self.main_layout.setContentsMargins(0, 50, 0, 0)
 
         self.frame = RoughBoxWidget()
         self.main_layout.addWidget(self.frame)
@@ -376,14 +376,14 @@ class SlideScrollerApp(QWidget):
         if self.locked_slide_index != -1:
             # LOCKED STATE
             self.timer_label.setText("TRAVADO")
+            self.timer_label.setMode("locked")
 
-            # Red text, red border, semi-transparent black bg
-            self.timer_label.setStyleSheet("""
-                color: #ff5555; font-weight: bold; font-size: 12px; 
-                background-color: rgba(0,0,0,220); border-radius: 5px; padding: 4px; 
-                border: 2px solid #ff5555;
-            """)
-            self.timer_label.resize(80, 28)
+            # Remove stylesheet borders/bg, let RoughPillWidget handle it
+            self.timer_label.setStyleSheet("background: transparent;")
+
+            self.timer_label.resize(
+                80, 45
+            )  # Increased height for rough border breathing room
 
             self.timer_label.move(
                 self.width() - self.timer_label.width() - margin_right, top_y
@@ -392,13 +392,11 @@ class SlideScrollerApp(QWidget):
         else:
             # UNLOCKED (RUNNING) STATE
             self.timer_label.setText(f"Próximo: {self.rem_time}s")
+            self.timer_label.setMode("unlocked")
 
-            self.timer_label.setStyleSheet("""
-                color: white; font-weight: 900; font-size: 12px; 
-                background-color: transparent; border-radius: 5px; padding: 4px; 
-                border: 2px solid white;
-            """)
-            self.timer_label.resize(110, 28)
+            self.timer_label.setStyleSheet("background: transparent;")
+
+            self.timer_label.resize(110, 45)  # Increased height
 
             self.timer_label.move(
                 self.width() - self.timer_label.width() - margin_right, top_y
