@@ -1,9 +1,10 @@
 import ctypes
+import logging
 import os
 import platform
 
 from PyQt6.QtCore import QFileSystemWatcher, Qt, QTimer
-from PyQt6.QtGui import QRegion
+from PyQt6.QtGui import QGuiApplication, QRegion
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
 from src.infrastructure.config import (
@@ -63,6 +64,12 @@ class SlideScrollerApp(QWidget):
         self.slides_data = []
         self.current_index = 0
         self.locked_slide_index = -1
+        self.dock_alignment = "default"
+        self._is_docking = False
+
+        self.save_timer = QTimer(self)
+        self.save_timer.setSingleShot(True)
+        self.save_timer.timeout.connect(self.save_geo)
 
         self.timer_label = RoughPillWidget(self)
         self.timer_label.show()
@@ -209,7 +216,6 @@ class SlideScrollerApp(QWidget):
 
     def mouseReleaseEvent(self, e):
         self.drag_pos = None
-        self.save_geo()
 
     def on_file_changed(self, path):
         # Debounce or simple reload
@@ -360,6 +366,102 @@ class SlideScrollerApp(QWidget):
 
         self.update_overlay_pos()
 
+        # Check for dock action
+        dock_action = global_conf.get("dock_action", {})
+        if dock_action:
+            ts = dock_action.get("ts", 0)
+            # Check if this is a new action we haven't processed yet
+            if not hasattr(self, "_last_dock_ts") or ts > self._last_dock_ts:
+                self._last_dock_ts = ts
+                self.process_dock(
+                    dock_action.get("pos"), global_conf.get("dock_margin", 20)
+                )
+
+        # Check for margin update on existing dock
+        current_margin = global_conf.get("dock_margin", 20)
+        # Store last known margin to detect change
+        if not hasattr(self, "_last_margin"):
+            self._last_margin = current_margin
+
+        if current_margin != self._last_margin:
+            self._last_margin = current_margin
+            # Only re-dock if we are currently docked
+            if self.dock_alignment != "default":
+                self.process_dock(self.dock_alignment, current_margin)
+
+    def process_dock(self, pos, margin):
+        screen = self.screen()
+        if not screen:
+            screen = QGuiApplication.primaryScreen()
+        if not screen:
+            return
+
+        geo = screen.availableGeometry()
+        full_geo = screen.geometry()
+
+        logging.info(
+            f"Screen Info: Name={screen.name()}, Available={geo}, Full={full_geo}"
+        )
+        x, y = self.x(), self.y()
+        w, h = self.width(), self.height()
+
+        # Get taskbar offset
+        d = load_data()
+        taskbar_offset = d.get("global_config", {}).get("taskbar_offset", 0)
+        logging.info(
+            f"Process Dock: pos={pos}, margin={margin}, taskbar_offset={taskbar_offset}"
+        )
+
+        match pos:
+            case "tl":
+                x = geo.left() + margin
+                y = geo.top() + margin
+            case "tr":
+                x = geo.right() - w - margin
+                y = geo.top() + margin
+            case "bl":
+                x = geo.left() + margin
+                y = geo.y() + geo.height() - h - margin - taskbar_offset
+            case "br":
+                x = geo.right() - w - margin
+                y = geo.y() + geo.height() - h - margin - taskbar_offset
+
+        logging.info(
+            f"Docking {pos}: Screen={screen.name()}, Geo={geo}, Target=({x}, {y})"
+        )
+
+        self._is_docking = True
+        self.move(x, y)
+        self.save_geo()
+
+        # Delayed reset of docking flag to allow WM to settle
+        QTimer.singleShot(250, lambda: setattr(self, "_is_docking", False))
+
+        # Update dock alignment state
+        self.dock_alignment = pos
+        self.update_overlay_pos()
+        self.update_margins()
+
+    def moveEvent(self, event):
+        # Detect manual moves
+        if not self._is_docking:
+            # If we are docked and move manually, reset dock state
+            if self.dock_alignment != "default":
+                self.dock_alignment = "default"
+                self.update_overlay_pos()
+                self.update_margins()
+
+        # Debounce save
+        self.save_timer.start(500)
+        super().moveEvent(event)
+
+    def update_margins(self):
+        match self.dock_alignment:
+            case "tl" | "tr":
+                self.main_layout.setContentsMargins(0, 0, 0, 50)
+            case "bl" | "br" | "default" | _:
+                self.main_layout.setContentsMargins(0, 50, 0, 0)
+
     def update_mask_shape(self, path):
         region = QRegion(path.toFillPolygon().toPolygon())
         self.stack.setMask(region)
@@ -372,48 +474,84 @@ class SlideScrollerApp(QWidget):
         self.update_overlay_pos()
 
     def update_overlay_pos(self):
-        top_y = 0
-        margin_right = 0
+        # Mapping:
+        # tl: Top & Left -> Pill Bottom & Left
+        # tr: Top & Right -> Pill Bottom & Right
+        # bl: Bottom & Left -> Pill Top & Left
+        # br: Bottom & Right -> Pill Top & Right
+        # default: Top & Right (Standard)
+
+        tgt_x = 0
+        tgt_y = 0
+
+        margin_x = 0
+
+        w = self.width()
+        h = self.height()
+        p_w = self.timer_label.width()
+        p_h = self.timer_label.height()
+
+        match self.dock_alignment:
+            case "tl":  # Bottom-Left
+                tgt_x = margin_x
+                tgt_y = h - p_h
+            case "tr":  # Bottom-Right
+                tgt_x = w - p_w - margin_x
+                tgt_y = h - p_h
+            case "bl":  # Top-Left
+                tgt_x = margin_x
+                tgt_y = 0
+            case "br":  # Top-Right
+                tgt_x = w - p_w - margin_x
+                tgt_y = 0
+            case _:  # Default (Top-Right)
+                tgt_x = w - p_w - margin_x
+                tgt_y = 0
 
         if self.locked_slide_index != -1:
             # LOCKED STATE
             self.timer_label.setText("TRAVADO")
             self.timer_label.setMode("locked")
-
-            # Remove stylesheet borders/bg, let RoughPillWidget handle it
             self.timer_label.setStyleSheet("background: transparent;")
-
-            self.timer_label.resize(
-                90, 45
-            )  # Increased height for rough border breathing room
-
-            self.timer_label.move(
-                self.width() - self.timer_label.width() - margin_right, top_y
-            )
+            self.timer_label.resize(90, 45)
+            p_w = 90
+            p_h = 45
 
         else:
             # UNLOCKED (RUNNING) STATE
             self.timer_label.setText(f"Próximo: {self.rem_time}s")
             self.timer_label.setMode("unlocked")
-
             self.timer_label.setStyleSheet("background: transparent;")
+            self.timer_label.resize(110, 45)
+            p_w = 110
+            p_h = 45
 
-            self.timer_label.resize(110, 45)  # Increased height
+        # Recalculate target with final size
+        match self.dock_alignment:
+            case "tl":
+                tgt_x = margin_x
+                tgt_y = h - p_h
+            case "tr":
+                tgt_x = w - p_w - margin_x
+                tgt_y = h - p_h
+            case "bl":
+                tgt_x = margin_x
+                tgt_y = 0
+            case "br" | "default" | _:
+                tgt_x = w - p_w - margin_x
+                tgt_y = 0
 
-            self.timer_label.move(
-                self.width() - self.timer_label.width() - margin_right, top_y
-            )
-
+        self.timer_label.move(int(tgt_x), int(tgt_y))
         self.timer_label.raise_()
 
     def update_view(self):
         if not self.slides_data:
             return
+
         d = self.slides_data[self.current_index]
         self.rem_time = d["time"]
-
-        # Start animation on current if needed (fade handled by stack)
         cw = d["widget"]
+
         if hasattr(cw, "start_animation"):
             cw.start_animation()
 

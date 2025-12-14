@@ -352,6 +352,43 @@ def cmd_slide_content(args):
     save_data(data)
 
 
+def cmd_dock(args):
+    """Dock the window to a corner."""
+    data = load_data()
+    if "global_config" not in data:
+        data["global_config"] = {}
+
+    import time
+
+    match args.action:
+        case "margin":
+            val = int(args.val)
+            data["global_config"]["dock_margin"] = val
+            print(f"Dock margin set to: {val}px")
+
+            save_data(data)
+        case "tl" | "tr" | "bl" | "br":
+            # Update dock action
+            data["global_config"]["dock_action"] = {
+                "pos": args.action,
+                "ts": time.time(),
+            }
+
+            start_map = {
+                "tl": "Top-Left",
+                "tr": "Top-Right",
+                "bl": "Bottom-Left",
+                "br": "Bottom-Right",
+            }
+            print(f"Docking to {start_map[args.action]}...")
+            save_data(data)
+        case "taskbar":
+            val = int(args.val)
+            data["global_config"]["taskbar_offset"] = val
+            print(f"Taskbar offset set to: {val}px")
+            save_data(data)
+
+
 def cmd_slide(args):
     """Manage slides."""
     data = load_data()
@@ -618,6 +655,36 @@ def main():
     )
 
     p_border.set_defaults(func=cmd_border)
+
+    # Dock
+    p_dock = subparsers.add_parser(
+        "dock",
+        help="Dock window to corner (tl, tr, bl, br) or set margin.",
+        formatter_class=ColoredHelpFormatter,
+    )
+    dock_subs = p_dock.add_subparsers(dest="action", required=True)
+
+    # Dock Positions
+    dock_subs.add_parser("tl", formatter_class=ColoredHelpFormatter)
+    dock_subs.add_parser("tr", formatter_class=ColoredHelpFormatter)
+    dock_subs.add_parser("bl", formatter_class=ColoredHelpFormatter)
+    dock_subs.add_parser("br", formatter_class=ColoredHelpFormatter)
+
+    # Dock Margin
+    p_dock_margin = dock_subs.add_parser(
+        "margin", help="Set docking margin", formatter_class=ColoredHelpFormatter
+    )
+    p_dock_margin.add_argument("val", type=int, help="Margin in pixels (e.g. 20)")
+
+    # Dock Taskbar Offset
+    p_dock_taskbar = dock_subs.add_parser(
+        "taskbar",
+        help="Set taskbar offset for bottom docking",
+        formatter_class=ColoredHelpFormatter,
+    )
+    p_dock_taskbar.add_argument("val", type=int, help="Offset in pixels (e.g. 48)")
+
+    p_dock.set_defaults(func=cmd_dock)
 
     # Bar
     p_bar = subparsers.add_parser(

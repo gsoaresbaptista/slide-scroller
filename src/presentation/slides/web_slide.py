@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtWidgets import QVBoxLayout
 
 try:
+    from PyQt6.QtWebEngineCore import QWebEnginePage
     from PyQt6.QtWebEngineWidgets import QWebEngineView
 
     HAS_WEBENGINE = True
@@ -32,6 +33,14 @@ class WebSlide(QWidget):
 
         if HAS_WEBENGINE:
             self.browser = QWebEngineView()
+
+            class SilentWebPage(QWebEnginePage):
+                def javaScriptConsoleMessage(self, level, msg, line, sourceID):
+                    pass
+
+            self.page = SilentWebPage(self.browser)
+            self.browser.setPage(self.page)
+
             self.browser.setStyleSheet("background: transparent;")
             self.browser.page().setBackgroundColor(Qt.GlobalColor.transparent)
             self.layout.addWidget(self.browser)
