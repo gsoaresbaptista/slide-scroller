@@ -46,7 +46,7 @@ class BarChartCanvas(FigureCanvas):
         if self.anim:
             try:
                 self.anim.event_source.stop()
-            except:
+            except Exception:
                 pass
             self.anim = None
 
@@ -96,7 +96,7 @@ class BarChartCanvas(FigureCanvas):
 
         cols = [self.colors[i % len(self.colors)] for i in range(self.num_bars)]
 
-        bars = self.ax.bar3d(
+        self.ax.bar3d(
             current_x,
             current_y,
             self.z_pos,

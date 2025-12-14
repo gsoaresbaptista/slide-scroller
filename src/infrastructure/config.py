@@ -69,7 +69,7 @@ def save_data(data):
         if "temp_file" in locals() and temp_file.exists():
             try:
                 temp_file.unlink()
-            except:
+            except Exception:
                 pass
 
 

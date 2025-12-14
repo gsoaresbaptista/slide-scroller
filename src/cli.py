@@ -17,7 +17,7 @@ def get_current_pid():
     if PID_FILE.exists():
         try:
             return int(PID_FILE.read_text().strip())
-        except:
+        except Exception:
             return None
     return None
 
@@ -84,8 +84,49 @@ def cmd_ghost(args):
     data["global_config"]["clickthrough"] = new_state
 
     save_data(data)
-    save_data(data)
     print(f"Ghost Mode (Click-through) set to: {new_state}")
+
+    pid = get_current_pid()
+
+    if is_running(pid):
+        print("Restarting application to apply Ghost Mode...")
+
+        try:
+            os.kill(pid, signal.SIGTERM)
+
+            # Wait for process to die - using efficient Linux pidfd if available
+            try:
+                if hasattr(os, "pidfd_open"):
+                    import select
+
+                    fd = os.pidfd_open(pid)
+                    try:
+                        p = select.poll()
+                        p.register(fd, select.POLLIN)
+                        if not p.poll(5000):
+                            print("Timed out waiting for application to close.")
+                    finally:
+                        os.close(fd)
+                else:
+                    raise OSError("pidfd_open not supported")
+
+            except Exception:
+                # Fallback to polling
+                import time
+
+                timeout = 5.0
+                start_time = time.time()
+
+                while is_running(pid):
+                    if time.time() - start_time > timeout:
+                        print("Timed out waiting for application to close.")
+                        break
+                    time.sleep(0.05)
+
+        except Exception as e:
+            print(f"Error during close: {e}")
+
+    cmd_launch(args)
 
 
 def cmd_border(args):

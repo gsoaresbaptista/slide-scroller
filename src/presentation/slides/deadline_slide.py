@@ -78,7 +78,7 @@ class DeadlineSlide(RoughBoxWidget):
             try:
                 dt = datetime.strptime(item["date"], "%d/%m/%Y")
                 parsed.append((dt, item["task"]))
-            except:
+            except Exception:
                 pass
 
         parsed.sort(key=lambda x: x[0])

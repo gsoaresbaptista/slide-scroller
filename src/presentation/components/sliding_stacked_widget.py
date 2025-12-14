@@ -50,7 +50,7 @@ class SlidingStackedWidget(QStackedWidget):
         if self.transition_active:
             try:
                 self.anim_group.finished.disconnect()
-            except:
+            except Exception:
                 pass
             self.anim_group.stop()
             if hasattr(self, "_next_widget") and self._next_widget:

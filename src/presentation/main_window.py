@@ -28,8 +28,6 @@ class SlideScrollerApp(QWidget):
         # Write PID
         PID_FILE.write_text(str(os.getpid()))
 
-
-
         # Load initial data
         load_data()
         d = load_data()
@@ -251,7 +249,7 @@ class SlideScrollerApp(QWidget):
                 )
             else:
                 self.raise_()
-        except:
+        except Exception:
             pass  # Swallow errors to prevent crash
 
     def rebuild(self):
@@ -359,7 +357,6 @@ class SlideScrollerApp(QWidget):
             self.set_lock_internal(new_lock)
 
         self.update_overlay_pos()
-
 
     def update_mask_shape(self, path):
         region = QRegion(path.toFillPolygon().toPolygon())

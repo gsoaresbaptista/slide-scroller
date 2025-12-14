@@ -40,7 +40,7 @@ class RoughBoxWidget(QWidget):
                 self.start_animation()
 
             self.update()
-        except:
+        except Exception:
             pass
 
     def start_animation(self):
