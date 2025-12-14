@@ -13,6 +13,10 @@ dependencies = [
     "pyqt6-sip>=13.10.3",
 ]
 
+[project.scripts]
+slide-scroller = "src.cli:main"
+ssc = "src.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

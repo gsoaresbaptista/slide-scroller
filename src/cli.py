@@ -198,6 +198,75 @@ def cmd_bar(args):
     save_data(data)
 
 
+def cmd_slide_content(args):
+    """Manage content items within text slides."""
+    data = load_data()
+    cls_data = get_active_class(data)
+    if "active_slides" not in cls_data:
+        cls_data["active_slides"] = []
+
+    slides = cls_data["active_slides"]
+    slide_idx = args.slide_id
+
+    if not (0 <= slide_idx < len(slides)):
+        print(f"Error: Slide ID {slide_idx} out of range")
+        return
+
+    slide = slides[slide_idx]
+    if slide.get("type") != "text":
+        print(f"Error: Slide {slide_idx} is not a text slide")
+        return
+
+    if "messages" not in slide:
+        slide["messages"] = []
+
+    messages = slide["messages"]
+
+    match args.content_action:
+        case "add":
+            new_msg = {
+                "content": args.content,
+                "duration": args.content_duration
+                if args.content_duration
+                else slide.get("duration", 10),
+            }
+            messages.append(new_msg)
+            print(
+                f"Added content item to slide {slide_idx} (now {len(messages)} items)"
+            )
+        case "rm":
+            content_idx = args.content_id
+            if 0 <= content_idx < len(messages):
+                messages.pop(content_idx)
+                print(f"Removed content item {content_idx} from slide {slide_idx}")
+            else:
+                print(f"Error: Content ID {content_idx} out of range")
+                return
+        case "edit":
+            content_idx = args.content_id
+            if 0 <= content_idx < len(messages):
+                if args.content:
+                    messages[content_idx]["content"] = args.content
+                if args.content_duration:
+                    messages[content_idx]["duration"] = args.content_duration
+                print(f"Edited content item {content_idx} in slide {slide_idx}")
+            else:
+                print(f"Error: Content ID {content_idx} out of range")
+                return
+        case "list":
+            if not messages:
+                print(f"Slide {slide_idx} has no content items")
+            else:
+                print(f"Slide {slide_idx} - {len(messages)} content item(s):\n")
+                for i, msg in enumerate(messages):
+                    preview = msg.get("content", "")[:60]
+                    if len(msg.get("content", "")) > 60:
+                        preview += "..."
+                    print(f"[{i}] ({msg.get('duration')}s) {preview}")
+
+    save_data(data)
+
+
 def cmd_slide(args):
     """Manage slides."""
     data = load_data()
@@ -236,7 +305,28 @@ def cmd_slide(args):
                     if args.zoom:
                         new_slide["zoom"] = float(args.zoom)
                 case "text":
-                    new_slide["content"] = args.content or "No Content"
+                    # Support multiple content items
+                    if args.content:
+                        # Create messages list with individual durations
+                        messages = []
+                        for i, content in enumerate(args.content):
+                            # Use content_duration if provided, otherwise use slide duration
+                            item_duration = (
+                                args.content_duration[i]
+                                if args.content_duration
+                                and i < len(args.content_duration)
+                                else args.duration
+                            )
+                            messages.append(
+                                {"content": content, "duration": item_duration}
+                            )
+                        new_slide["messages"] = messages
+                    else:
+                        # Default single message
+                        new_slide["messages"] = [
+                            {"content": "# Vazio", "duration": args.duration}
+                        ]
+
                     new_slide["title"] = args.title or "Info"
                 case "deadline":
                     new_slide["date"] = args.date or datetime.now().isoformat()
@@ -246,6 +336,8 @@ def cmd_slide(args):
 
             slides.append(new_slide)
             print(f"Added new {args.type} slide.")
+            if args.type == "text" and args.content:
+                print(f"  → {len(args.content)} content item(s) added")
         case "edit":
             idx = int(args.id)
             if not (0 <= idx < len(slides)):
@@ -261,14 +353,48 @@ def cmd_slide(args):
                 s["url"] = args.url
             if hasattr(args, "zoom") and args.zoom is not None:
                 s["zoom"] = float(args.zoom)
-            if hasattr(args, "content") and args.content is not None:
-                s["content"] = args.content
             if hasattr(args, "title") and args.title is not None:
                 s["title"] = args.title
             if hasattr(args, "date") and args.date is not None:
                 s["date"] = args.date
 
-            print(f"Edited slide {idx}.")
+            # Text slide content editing
+            if hasattr(args, "content") and args.content is not None:
+                if s.get("type") == "text":
+                    # If content-id specified, edit specific content item
+                    if hasattr(args, "content_id") and args.content_id is not None:
+                        if "messages" in s:
+                            content_idx = args.content_id
+                            if 0 <= content_idx < len(s["messages"]):
+                                s["messages"][content_idx]["content"] = args.content
+                                if (
+                                    hasattr(args, "content_duration")
+                                    and args.content_duration is not None
+                                ):
+                                    s["messages"][content_idx]["duration"] = (
+                                        args.content_duration
+                                    )
+                                print(
+                                    f"Edited content item {content_idx} in slide {idx}."
+                                )
+                            else:
+                                print(f"Error: Content ID {content_idx} out of range")
+                                return
+                        else:
+                            print("Error: Slide has no content items")
+                            return
+                    else:
+                        # Replace all content with single item (backward compatibility)
+                        s["messages"] = [
+                            {"content": args.content, "duration": s.get("duration", 10)}
+                        ]
+                        print(f"Replaced all content in slide {idx}.")
+                else:
+                    # For non-text slides, keep old behavior
+                    s["content"] = args.content
+                    print(f"Edited slide {idx}.")
+            else:
+                print(f"Edited slide {idx}.")
         case "list":
             if not slides:
                 print("No slides configured.")
@@ -283,7 +409,19 @@ def cmd_slide(args):
                         info.append(f"URL: {s.get('url')}")
                     elif stype == "text":
                         info.append(f"Title: {s.get('title')}")
-                        info.append(f"Content: {s.get('content')}")
+                        # Show multiple content items if available
+                        if "messages" in s:
+                            info.append(f"Content items: {len(s['messages'])}")
+                            for ci, msg in enumerate(s["messages"]):
+                                preview = msg.get("content", "")[:50]
+                                if len(msg.get("content", "")) > 50:
+                                    preview += "..."
+                                info.append(
+                                    f"  [{ci}] {preview} ({msg.get('duration', duration)}s)"
+                                )
+                        else:
+                            # Backward compatibility
+                            info.append(f"Content: {s.get('content')}")
                     elif stype == "deadline":
                         info.append(f"Title: {s.get('title')}")
                         info.append(f"Date: {s.get('date')}")
@@ -334,9 +472,6 @@ def main():
         "launch",
         help="Launch the application detached.",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py launch
-""",
     )
     p_launch.set_defaults(func=cmd_launch)
 
@@ -345,9 +480,6 @@ def main():
         "close",
         help="Close the running application.",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py close
-""",
     )
     p_close.set_defaults(func=cmd_close)
 
@@ -356,9 +488,6 @@ def main():
         "ghost",
         help="Toggle Ghost Mode (Click-through).",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py ghost
-""",
     )
     p_ghost.set_defaults(func=cmd_ghost)
 
@@ -375,10 +504,6 @@ def main():
         "set",
         help="Set roughness value",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py border set --val 1.0    # Default roughness
-  uv run src/cli.py border set --val 2.5    # Rougher border
-""",
     )
     p_border_set.add_argument(
         "--val", required=True, type=float, help="Roughness value"
@@ -389,10 +514,6 @@ def main():
         "radius",
         help="Set border radius",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py border radius --val 10  # Standard rounded corners
-  uv run src/cli.py border radius --val 0   # Sharp corners
-""",
     )
     p_border_radius.add_argument(
         "--val", required=True, type=float, help="Radius value"
@@ -403,10 +524,6 @@ def main():
         "animation",
         help="Toggle animation",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py border animation --state on
-  uv run src/cli.py border animation --state off
-""",
     )
     p_border_anim.add_argument(
         "--state", required=True, choices=["on", "off"], help="Animation state"
@@ -432,10 +549,6 @@ def main():
         "add",
         help="Add a bar value",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py bar add --val 50
-  uv run src/cli.py bar add --val 12.5
-""",
     )
     p_bar_add.add_argument("--val", required=True, type=float, help="Value to add")
 
@@ -444,9 +557,6 @@ def main():
         "set",
         help="Set a bar value by ID",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py bar set --id 0 --val 100
-""",
     )
     p_bar_set.add_argument("--id", required=True, type=int, help="Index of bar")
     p_bar_set.add_argument("--val", required=True, type=float, help="New value")
@@ -456,9 +566,6 @@ def main():
         "rm",
         help="Remove a bar by ID",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py bar rm --id 0
-""",
     )
     p_bar_rm.add_argument(
         "--id", required=True, type=int, help="Index of bar to remove"
@@ -477,9 +584,6 @@ def main():
         "lock",
         help="Lock specific slide",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py slide lock --id 2
-""",
     )
     p_slide_lock.add_argument("--id", required=True, type=int, help="Slide ID")
 
@@ -498,9 +602,6 @@ def main():
         "rm",
         help="Remove specific slide",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py slide rm --id 1
-""",
     )
     p_slide_rm.add_argument("--id", required=True, type=int, help="Slide ID")
 
@@ -509,19 +610,6 @@ def main():
         "add",
         help="Add a new slide",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  # Web Slide
-  uv run src/cli.py slide add --type web --url "https://google.com" --zoom 1.2
-
-  # Text Slide
-  uv run src/cli.py slide add --type text --title "Morning Meeting" --content "Discuss Q3 goals."
-
-  # Deadline Slide
-  uv run src/cli.py slide add --type deadline --title "Project Due" --date "2025-12-31"
-
-  # Chart Slide (Empty)
-  uv run src/cli.py slide add --type chart
-""",
     )
 
     # Common Options
@@ -544,7 +632,15 @@ def main():
     grp_content = p_slide_add.add_argument_group("Text & Deadline Options")
     grp_content.add_argument("--title", help="Title header for the slide.")
     grp_content.add_argument(
-        "--content", help="Main text content/body (Text slides only)."
+        "--content",
+        action="append",
+        help="Text content (can be used multiple times for rotating content items).",
+    )
+    grp_content.add_argument(
+        "--content-duration",
+        action="append",
+        type=int,
+        help="Duration for each content item (optional, defaults to slide duration).",
     )
     grp_content.add_argument(
         "--date", help="Target date in ISO format YYYY-MM-DD (Deadline slides only)."
@@ -560,19 +656,80 @@ def main():
         "edit",
         help="Edit an existing slide",
         formatter_class=ColoredHelpFormatter,
-        epilog="""\033[92mExamples:\033[0m
-  uv run src/cli.py slide edit --id 0 --duration 20
-  uv run src/cli.py slide edit --id 1 --title "New Title"
-""",
     )
     p_slide_edit.add_argument("--id", required=True, type=int, help="Slide ID")
     p_slide_edit.add_argument("--duration", type=int, help="Duration in seconds")
     p_slide_edit.add_argument("--url", help="URL (web)")
     p_slide_edit.add_argument("--zoom", help="Zoom (web)")
     p_slide_edit.add_argument("--content", help="Content (text)")
+    p_slide_edit.add_argument(
+        "--content-id",
+        type=int,
+        help="Specific content item ID to edit (text slides only)",
+    )
+    p_slide_edit.add_argument(
+        "--content-duration",
+        type=int,
+        help="Duration for specific content item (text slides only)",
+    )
     p_slide_edit.add_argument("--title", help="Title (text/deadline)")
     p_slide_edit.add_argument("--date", help="Date (deadline)")
 
+    # Slide Content (manage content items within text slides)
+    p_slide_content = slide_subs.add_parser(
+        "content",
+        help="Manage content items within text slides",
+        formatter_class=ColoredHelpFormatter,
+    )
+    content_subs = p_slide_content.add_subparsers(dest="content_action", required=True)
+
+    # Content Add
+    p_content_add = content_subs.add_parser(
+        "add",
+        help="Add content item to text slide",
+        formatter_class=ColoredHelpFormatter,
+    )
+    p_content_add.add_argument("--slide-id", required=True, type=int, help="Slide ID")
+    p_content_add.add_argument("--content", required=True, help="Content text")
+    p_content_add.add_argument(
+        "--content-duration", type=int, help="Duration in seconds"
+    )
+
+    # Content Remove
+    p_content_rm = content_subs.add_parser(
+        "rm",
+        help="Remove content item from text slide",
+        formatter_class=ColoredHelpFormatter,
+    )
+    p_content_rm.add_argument("--slide-id", required=True, type=int, help="Slide ID")
+    p_content_rm.add_argument(
+        "--content-id", required=True, type=int, help="Content item ID"
+    )
+
+    # Content Edit
+    p_content_edit = content_subs.add_parser(
+        "edit",
+        help="Edit content item in text slide",
+        formatter_class=ColoredHelpFormatter,
+    )
+    p_content_edit.add_argument("--slide-id", required=True, type=int, help="Slide ID")
+    p_content_edit.add_argument(
+        "--content-id", required=True, type=int, help="Content item ID"
+    )
+    p_content_edit.add_argument("--content", help="New content text")
+    p_content_edit.add_argument(
+        "--content-duration", type=int, help="New duration in seconds"
+    )
+
+    # Content List
+    p_content_list = content_subs.add_parser(
+        "list",
+        help="List content items in text slide",
+        formatter_class=ColoredHelpFormatter,
+    )
+    p_content_list.add_argument("--slide-id", required=True, type=int, help="Slide ID")
+
+    p_slide_content.set_defaults(func=cmd_slide_content)
     p_slide.set_defaults(func=cmd_slide)
 
     args = parser.parse_args()

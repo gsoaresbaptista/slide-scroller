@@ -23,13 +23,20 @@ class TextInfoSlide(RoughBoxWidget):
         d = load_data()
 
         # If we have slide_config, use it directly
-        if self.slide_config and "content" in self.slide_config:
-            self.messages = [
-                {
-                    "content": self.slide_config.get("content", "# Vazio"),
-                    "duration": self.slide_config.get("duration", 5),
-                }
-            ]
+        if self.slide_config:
+            # New format: messages list
+            if "messages" in self.slide_config:
+                self.messages = self.slide_config["messages"]
+            # Old format: single content field (backward compatibility)
+            elif "content" in self.slide_config:
+                self.messages = [
+                    {
+                        "content": self.slide_config.get("content", "# Vazio"),
+                        "duration": self.slide_config.get("duration", 5),
+                    }
+                ]
+            else:
+                self.messages = [{"content": "# Vazio", "duration": 5}]
         else:
             # Fallback to notices for backward compatibility
             cls = get_current_class_data()
