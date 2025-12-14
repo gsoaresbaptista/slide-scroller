@@ -361,6 +361,10 @@ class SlideScrollerApp(QWidget):
     def update_mask_shape(self, path):
         region = QRegion(path.toFillPolygon().toPolygon())
         self.stack.setMask(region)
+        # Force update/repaint, especially important for WebEngineView
+        self.stack.update()
+        if self.stack.currentWidget():
+            self.stack.currentWidget().update()
 
     def update_ui(self):
         self.update_overlay_pos()

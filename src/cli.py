@@ -144,6 +144,13 @@ def cmd_border(args):
             save_data(data)
         else:
             print("Error: --val required for set")
+    elif args.action == "radius":
+        if args.val is not None:
+            data["global_config"]["visuals"]["border_radius"] = float(args.val)
+            print(f"Border radius set to: {args.val}")
+            save_data(data)
+        else:
+            print("Error: --val required for radius")
     elif args.action == "animation":
         if args.state is not None:
             val = args.state.lower() == "on"
@@ -153,12 +160,10 @@ def cmd_border(args):
         else:
             print("Error: --state (on/off) required for animation")
     else:
-        print(
-            f"Current roughness: {data['global_config']['visuals'].get('rough_slide', 1.0)}"
-        )
-        print(
-            f"Animation enabled: {data['global_config']['visuals'].get('animation_enabled', True)}"
-        )
+        vis = data.get("global_config", {}).get("visuals", {})
+        print(f"Current roughness: {vis.get('rough_slide', 1.0)}")
+        print(f"Current radius: {vis.get('border_radius', 10.0)}")
+        print(f"Animation enabled: {vis.get('animation_enabled', True)}")
 
 
 def get_active_class(data):
@@ -320,7 +325,7 @@ def main():
     # Border
     p_border = subparsers.add_parser("border", help="Manage visual border effects.")
     p_border.add_argument(
-        "action", choices=["set", "animation"], help="Action to perform"
+        "action", choices=["set", "radius", "animation"], help="Action to perform"
     )
     p_border.add_argument("--val", help="Value to set (for 'set' action). Float.")
     p_border.add_argument(

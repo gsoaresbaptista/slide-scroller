@@ -30,10 +30,10 @@ class RoughBoxWidget(QWidget):
             vis = d.get("global_config", {}).get("visuals", {})
             self.bg_alpha = vis.get("bg_alpha", 150)
             self.roughness_base = vis.get("rough_slide", 1.0)
+            self.border_radius = vis.get("border_radius", 10.0)
             self.animation_enabled = vis.get("animation_enabled", True)
 
             if not self.animation_enabled:
-                # Pause animation but preserve 'should_animate' state
                 if self.anim_timer.isActive():
                     self.anim_timer.stop()
             elif hasattr(self, "should_animate") and self.should_animate:
@@ -47,7 +47,7 @@ class RoughBoxWidget(QWidget):
         self.should_animate = True
         if not hasattr(self, "animation_enabled") or self.animation_enabled:
             if not self.anim_timer.isActive():
-                self.anim_timer.start(50)  # 20 FPS
+                self.anim_timer.start(50)
 
     def stop_animation(self):
         self.should_animate = False
@@ -57,13 +57,12 @@ class RoughBoxWidget(QWidget):
 
     def animate_border(self):
         self.offset += 0.5
-        # signals.border_frame_update.emit(self.offset) # Disabled as web slide no longer needs it
 
-        # Calculate path for listeners (masking)
         if self.receivers(self.border_path_update) > 0:
-            # Increased padding to prevent clipping of the rough border
             rect = QRectF(self.rect().adjusted(5, 5, -5, -5))
-            path = RoughBoxWidget.get_rough_path(rect, self.offset, self.roughness_base)
+            path = RoughBoxWidget.get_rough_path(
+                rect, self.offset, self.roughness_base, radius=self.border_radius
+            )
             self.border_path_update.emit(path)
 
         self.update()
@@ -80,11 +79,13 @@ class RoughBoxWidget(QWidget):
         title=None,
         color=None,
         rough=True,
-        radius=10,
+        radius=None,
     ):
-        # Use cached values
         bg_alpha = self.bg_alpha
         roughness = self.roughness_base * intensity
+
+        if radius is None:
+            radius = getattr(self, "border_radius", 10.0)
 
         if color is None:
             color = QColor("white")
@@ -100,7 +101,6 @@ class RoughBoxWidget(QWidget):
             painter.setBrush(Qt.BrushStyle.NoBrush)
 
         if not rough:
-            # Just draw smooth border
             painter.setPen(QPen(color, 2))
             painter.drawRoundedRect(rect, radius, radius)
 
@@ -119,8 +119,7 @@ class RoughBoxWidget(QWidget):
             painter.restore()
             return
 
-        # Rough Border Logic
-        path = RoughBoxWidget.get_rough_path(rect, self.offset, roughness)
+        path = RoughBoxWidget.get_rough_path(rect, self.offset, roughness, radius)
 
         if fill:
             painter.setBrush(QColor(0, 0, 0, bg_alpha))
@@ -149,45 +148,173 @@ class RoughBoxWidget(QWidget):
         painter.restore()
 
     @staticmethod
-    def get_rough_path(rect, offset, roughness):
+    def get_rough_path(rect, offset, roughness, radius=10):
         path = QPainterPath()
         x, y, w, h = rect.x(), rect.y(), rect.width(), rect.height()
 
-        steps = int(max(w, h) / 5)
-        path.moveTo(x, y)
+        radius = min(radius, w / 2, h / 2)
 
         amplitude = 2.0 * roughness
-        freq = 0.5
 
-        # Top
-        for i in range(steps + 1):
-            t = i / steps
-            px = x + w * t
-            py = y + math.sin(t * 10 + offset * freq) * amplitude
-            if i == 0:
-                path.moveTo(px, py)
-            else:
-                path.lineTo(px, py)
+        base_spatial_freq = 0.05
+        time_freq = 0.5
 
-        # Right
-        for i in range(steps + 1):
-            t = i / steps
-            py = y + h * t
-            px = x + w + math.sin(t * 10 + offset * freq + 2.0) * amplitude
+        perimeter = 2 * (w - 2 * radius) + 2 * (h - 2 * radius) + 2 * math.pi * radius
+        target_cycles = max(1, round(perimeter * base_spatial_freq / (2 * math.pi)))
+        spatial_freq = (
+            (target_cycles * 2 * math.pi) / perimeter
+            if perimeter > 0
+            else base_spatial_freq
+        )
+
+        def get_noise(d):
+            return math.sin(d * spatial_freq + offset * time_freq) * amplitude
+
+        current_d = 0.0
+
+        # 1. Top Edge
+        start_x = x + radius
+        start_y = y
+        path.moveTo(start_x, start_y - get_noise(0))
+
+        len_top = w - 2 * radius
+        steps_top = max(1, int(len_top / 5))
+
+        for i in range(steps_top + 1):
+            ft = i / steps_top
+            dist_on_seg = len_top * ft
+
+            noise = get_noise(current_d + dist_on_seg)
+
+            px = start_x + dist_on_seg
+            py = start_y - noise
             path.lineTo(px, py)
 
-        # Bottom
-        for i in range(steps + 1):
-            t = i / steps
-            px = x + w - (w * t)
-            py = y + h + math.sin(t * 10 + offset * freq + 4.0) * amplitude
+        current_d += len_top
+
+        # 2. Top-Right Corner
+        cx_tr = x + w - radius
+        cy_tr = y + radius
+        arc_len = math.pi * radius / 2
+        steps_corner = max(1, int(arc_len / 3))
+
+        for i in range(steps_corner + 1):
+            ft = i / steps_corner
+            dist_on_seg = arc_len * ft
+
+            angle_rad = -math.pi / 2 + (math.pi / 2) * ft
+
+            noise = get_noise(current_d + dist_on_seg)
+            r_noisy = radius + noise
+
+            px = cx_tr + r_noisy * math.cos(angle_rad)
+            py = cy_tr + r_noisy * math.sin(angle_rad)
             path.lineTo(px, py)
 
-        # Left
-        for i in range(steps + 1):
-            t = i / steps
-            py = y + h - (h * t)
-            px = x + math.sin(t * 10 + offset * freq + 6.0) * amplitude
+        current_d += arc_len
+
+        # 3. Right Edge
+        start_y_right = y + radius
+        len_right = h - 2 * radius
+        steps_right = max(1, int(len_right / 5))
+
+        for i in range(steps_right + 1):
+            ft = i / steps_right
+            dist_on_seg = len_right * ft
+
+            noise = get_noise(current_d + dist_on_seg)
+
+            px = x + w + noise
+            py = start_y_right + dist_on_seg
+            path.lineTo(px, py)
+
+        current_d += len_right
+
+        # 4. Bottom-Right Corner
+        cx_br = x + w - radius
+        cy_br = y + h - radius
+
+        for i in range(steps_corner + 1):
+            ft = i / steps_corner
+            dist_on_seg = arc_len * ft
+
+            angle_rad = 0 + (math.pi / 2) * ft
+
+            noise = get_noise(current_d + dist_on_seg)
+            r_noisy = radius + noise
+
+            px = cx_br + r_noisy * math.cos(angle_rad)
+            py = cy_br + r_noisy * math.sin(angle_rad)
+            path.lineTo(px, py)
+
+        current_d += arc_len
+
+        # 5. Bottom Edge
+        start_x_bottom = x + w - radius
+        len_bottom = w - 2 * radius
+
+        for i in range(steps_top + 1):
+            ft = i / steps_top
+            dist_on_seg = len_bottom * ft
+
+            noise = get_noise(current_d + dist_on_seg)
+
+            px = start_x_bottom - dist_on_seg
+            py = y + h + noise
+            path.lineTo(px, py)
+
+        current_d += len_bottom
+
+        # 6. Bottom-Left Corner
+        cx_bl = x + radius
+        cy_bl = y + h - radius
+
+        for i in range(steps_corner + 1):
+            ft = i / steps_corner
+            dist_on_seg = arc_len * ft
+
+            angle_rad = math.pi / 2 + (math.pi / 2) * ft
+
+            noise = get_noise(current_d + dist_on_seg)
+            r_noisy = radius + noise
+
+            px = cx_bl + r_noisy * math.cos(angle_rad)
+            py = cy_bl + r_noisy * math.sin(angle_rad)
+            path.lineTo(px, py)
+
+        current_d += arc_len
+
+        # 7. Left Edge
+        start_y_left = y + h - radius
+        len_left = h - 2 * radius
+
+        for i in range(steps_right + 1):
+            ft = i / steps_right
+            dist_on_seg = len_left * ft
+
+            noise = get_noise(current_d + dist_on_seg)
+
+            px = x - noise
+            py = start_y_left - dist_on_seg
+            path.lineTo(px, py)
+
+        current_d += len_left
+
+        # 8. Top-Left Corner
+        cx_tl = x + radius
+        cy_tl = y + radius
+
+        for i in range(steps_corner + 1):
+            ft = i / steps_corner
+            dist_on_seg = arc_len * ft
+
+            angle_rad = math.pi + (math.pi / 2) * ft
+
+            noise = get_noise(current_d + dist_on_seg)
+            r_noisy = radius + noise
+
+            px = cx_tl + r_noisy * math.cos(angle_rad)
+            py = cy_tl + r_noisy * math.sin(angle_rad)
             path.lineTo(px, py)
 
         path.closeSubpath()
@@ -195,8 +322,12 @@ class RoughBoxWidget(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        # Increased padding to prevent clipping
         rect = QRectF(self.rect().adjusted(5, 5, -5, -5))
         self.draw_rough_box(
-            painter, rect, fill=True, intensity=1.0, rough=True, radius=10
+            painter,
+            rect,
+            fill=True,
+            intensity=1.0,
+            rough=True,
+            radius=self.border_radius,
         )
