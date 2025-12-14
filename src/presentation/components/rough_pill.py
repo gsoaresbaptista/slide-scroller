@@ -32,9 +32,11 @@ class RoughPillWidget(RoughBoxWidget):
         # Adjust for border
         draw_rect = QRectF(rect).adjusted(5, 5, -5, -5)
 
+        # Load color inversion setting
+        inverted = getattr(self, "color_inverted", False)
+
         if self.mode == "locked":
-            # Red/Black style (Pastel Red)
-            # Pastel Red: #ff6961
+            # Red/Black style (Pastel Red) - keep unchanged
             c = QColor("#ff6961")
 
             # Draw filled background with rough border
@@ -56,15 +58,11 @@ class RoughPillWidget(RoughBoxWidget):
             painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, self.text)
 
         else:
-            # Unlocked style ("vazado" or transparent fill)
-            c = QColor("white")
+            # Unlocked style - apply color inversion
+            c = QColor("black" if inverted else "white")
             if self.custom_color == "black":
                 c = QColor("black")
 
-            # For unlocked, maybe we want a rough border but no fill, or transparent fill?
-            # User said "same border... in Next...". Assuming the white border.
-
-            # If we want the rough border but transparent bg:
             self.draw_rough_box(
                 painter,
                 draw_rect,

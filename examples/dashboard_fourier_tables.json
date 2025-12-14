@@ -22,6 +22,7 @@
     "global_config": {
         "current_class_id": "Geral",
         "always_on_top": true,
+        "color_inverted": false,
         "visuals": {
             "font_family": "Segoe UI",
             "font_size": 16

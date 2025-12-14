@@ -9,7 +9,7 @@ from PyQt6.QtCore import (
     QTimer,
     pyqtProperty,
 )
-from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter, QTextDocument
+from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter
 
 from src.infrastructure.config import get_current_class_data, load_data, save_data
 from src.infrastructure.signals import signals
@@ -80,6 +80,10 @@ class TextInfoSlide(RoughBoxWidget):
         vis = d.get("global_config", {}).get("visuals", {})
         self.font_family = vis.get("font_family", "Segoe UI")
         self.font_size = vis.get("font_size", 16)
+
+        # Load color inversion setting
+        self.color_inverted = d.get("global_config", {}).get("color_inverted", False)
+        self.text_color = QColor("black" if self.color_inverted else "white")
 
         # Text alignment: 'center' or 'left'
         self.text_align = (
@@ -167,19 +171,19 @@ class TextInfoSlide(RoughBoxWidget):
             # Render plain text/markdown with manual alignment
             padding_x = 50
             padding_y = 30
-            
+
             painter.save()
             painter.translate(rect.x() + x_offset, rect.y())
-            
+
             content_width = rect.width() - (padding_x * 2)
             content_height = rect.height() - (padding_y * 2)
-            
+
             lines = msg.split("\n")
-            
+
             font = QFont(self.font_family, self.font_size)
             fm = QFontMetrics(font)
             line_height = fm.height() * 1.5
-            
+
             # Calculate total height
             total_height = 0
             line_data = []
@@ -198,41 +202,44 @@ class TextInfoSlide(RoughBoxWidget):
                 else:
                     line_data.append(("text", line, line_height))
                     total_height += line_height
-            
+
             # Center vertically
             y_pos = padding_y + (content_height - total_height) / 2
-            
+
             for line_type, text, h in line_data:
                 if line_type == "empty":
                     y_pos += h
                     continue
-                
+
                 if line_type == "title":
                     title_font = QFont(self.font_family, int(self.font_size * 1.5))
                     title_font.setBold(True)
                     painter.setFont(title_font)
-                    painter.setPen(QColor("white"))
+                    painter.setPen(self.text_color)
                     title_fm = QFontMetrics(title_font)
-                    
+
                     if self.text_align == "center":
-                        x = padding_x + (content_width - title_fm.horizontalAdvance(text)) / 2
+                        x = (
+                            padding_x
+                            + (content_width - title_fm.horizontalAdvance(text)) / 2
+                        )
                     else:
                         x = padding_x
-                    
+
                     painter.drawText(int(x), int(y_pos + title_fm.ascent()), text)
                     y_pos += h
                 else:
                     painter.setFont(font)
-                    painter.setPen(QColor("white"))
-                    
+                    painter.setPen(self.text_color)
+
                     if self.text_align == "center":
                         x = padding_x + (content_width - fm.horizontalAdvance(text)) / 2
                     else:
                         x = padding_x
-                    
+
                     painter.drawText(int(x), int(y_pos + fm.ascent()), text)
                     y_pos += h
-            
+
             painter.restore()
 
     def _is_table_content(self, msg):
@@ -319,7 +326,7 @@ class TextInfoSlide(RoughBoxWidget):
                     segments = renderer.parse_and_render(
                         cell,
                         self.font_size,
-                        "white",
+                        self.text_color.name(),
                         dpi=150,
                         max_width=max_cell_latex_width,
                     )
@@ -358,7 +365,7 @@ class TextInfoSlide(RoughBoxWidget):
             )
             title_font.setBold(True)
             painter.setFont(title_font)
-            painter.setPen(QColor("white"))
+            painter.setPen(self.text_color)
 
             title_fm = QFontMetrics(title_font)
             x_title = (
@@ -373,7 +380,7 @@ class TextInfoSlide(RoughBoxWidget):
         table_width = content_width
         table_height = sum(scaled_row_heights)
 
-        painter.setPen(QColor("white"))
+        painter.setPen(self.text_color)
         painter.drawRect(
             int(table_x), int(table_y), int(table_width), int(table_height)
         )
@@ -502,7 +509,7 @@ class TextInfoSlide(RoughBoxWidget):
 
         font = QFont(self.font_family, self.font_size)
         painter.setFont(font)
-        painter.setPen(QColor("white"))
+        painter.setPen(self.text_color)
 
         content_width = rect.width() - (padding_x * 2)
         content_height = rect.height() - (padding_y * 2)
@@ -522,7 +529,11 @@ class TextInfoSlide(RoughBoxWidget):
 
             max_latex_width = int(content_width * 0.9)
             segments = renderer.parse_and_render(
-                line, self.font_size, "white", dpi=150, max_width=max_latex_width
+                line,
+                self.font_size,
+                self.text_color.name(),
+                dpi=150,
+                max_width=max_latex_width,
             )
 
             total_width = 0
@@ -607,7 +618,7 @@ class TextInfoSlide(RoughBoxWidget):
                 title_font.setBold(True)
                 painter.save()
                 painter.setFont(title_font)
-                painter.setPen(QColor("white"))
+                painter.setPen(self.text_color)
 
                 fm = QFontMetrics(title_font)
                 title_width = fm.horizontalAdvance(title_text)
@@ -707,12 +718,16 @@ class TextInfoSlide(RoughBoxWidget):
                 active_index = (
                     self.next_msg_index if self.is_animating else self.current_msg_index
                 )
+                # Apply color inversion to pagination dots
+                r, g, b = (0, 0, 0) if self.color_inverted else (255, 255, 255)
                 painter.setBrush(
                     QColor(
-                        255,
-                        255,
-                        255,
+                        r,
+                        g,
+                        b,
                         255 if i == active_index % total else 80,
                     )
                 )
                 painter.drawEllipse(QPointF(sx + i * 20, rect.bottom() - 15), 3, 3)
+
+        painter.end()

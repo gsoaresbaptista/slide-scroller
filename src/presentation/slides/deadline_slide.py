@@ -46,6 +46,10 @@ class DeadlineSlide(RoughBoxWidget):
         # Request: "Aumente a fonte" - defaulting to 18 instead of 16
         self.font_size = vis.get("font_size", 18)
 
+        # Load color inversion setting
+        self.color_inverted = d.get("global_config", {}).get("color_inverted", False)
+        self.text_color = "black" if self.color_inverted else "white"
+
         # Legend intensity from config
         self.rough_legend = vis.get("rough_legend", 0.5)
         self.update()
@@ -58,7 +62,7 @@ class DeadlineSlide(RoughBoxWidget):
         h = self.height()
 
         painter.save()
-        painter.setPen(QColor("white"))
+        painter.setPen(QColor(self.text_color))
         f = QFont(self.font_family, 24, QFont.Weight.Bold)
         painter.setFont(f)
 
@@ -71,16 +75,16 @@ class DeadlineSlide(RoughBoxWidget):
 
         html = f"""
         <style>
-            body {{ font-family: '{self.font_family}'; font-size: {table_font_size}pt; color: white; }}
+            body {{ font-family: '{self.font_family}'; font-size: {table_font_size}pt; color: {self.text_color}; }}
             table {{ width: 100%; border-collapse: collapse; border-spacing: 0; margin-top: 10px; }}
             th, td {{ padding: 8px; }}
         </style>
         <body>
         <table align="center">
         <tr>
-            <th width="40%" style='border-bottom: 2px solid white; text-align: left;'>Nome</th>
-            <th width="30%" style='border-bottom: 2px solid white; text-align: center;'>Data</th>
-            <th width="30%" style='border-bottom: 2px solid white; text-align: center;'>Faltam</th>
+            <th width="40%" style='border-bottom: 2px solid {self.text_color}; text-align: left;'>Nome</th>
+            <th width="30%" style='border-bottom: 2px solid {self.text_color}; text-align: center;'>Data</th>
+            <th width="30%" style='border-bottom: 2px solid {self.text_color}; text-align: center;'>Faltam</th>
         </tr>
         """
 
@@ -154,7 +158,7 @@ class DeadlineSlide(RoughBoxWidget):
 
         start_x = rect.x() + (rect.width() - total_w) / 2
 
-        pen_white = QColor("white")
+        pen_text = QColor(self.text_color)
 
         for color, txt in legends:
             sq_rect = QRectF(start_x, legend_y, icon_size, icon_size)
@@ -174,7 +178,9 @@ class DeadlineSlide(RoughBoxWidget):
             )
 
             start_x += icon_size + gap_icon_text
-            painter.setPen(pen_white)
+            painter.setPen(pen_text)
             painter.drawText(int(start_x), int(legend_y + 15), txt)
 
             start_x += fm.horizontalAdvance(txt) + gap_items
+
+        painter.end()

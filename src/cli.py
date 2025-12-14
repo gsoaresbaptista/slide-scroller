@@ -3,7 +3,6 @@ import os
 import signal
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -129,6 +128,60 @@ def cmd_ghost(args):
     cmd_launch(args)
 
 
+def cmd_invert(args):
+    """Toggle color inversion (black <-> white)."""
+    data = load_data()
+    if "global_config" not in data:
+        data["global_config"] = {}
+
+    current = data["global_config"].get("color_inverted", False)
+    new_state = not current
+    data["global_config"]["color_inverted"] = new_state
+
+    save_data(data)
+    print(f"Color Inversion set to: {new_state}")
+
+    pid = get_current_pid()
+
+    if is_running(pid):
+        print("Restarting application to apply color inversion...")
+
+        try:
+            os.kill(pid, signal.SIGTERM)
+
+            try:
+                if hasattr(os, "pidfd_open"):
+                    import select
+
+                    fd = os.pidfd_open(pid)
+                    try:
+                        p = select.poll()
+                        p.register(fd, select.POLLIN)
+                        if not p.poll(5000):
+                            print("Timed out waiting for application to close.")
+                    finally:
+                        os.close(fd)
+                else:
+                    raise OSError("pidfd_open not supported")
+
+            except Exception:
+                import time
+
+                timeout = 5.0
+                start_time = time.time()
+
+                while is_running(pid):
+                    if time.time() - start_time > timeout:
+                        print("Timed out waiting for application to close.")
+                        break
+                    time.sleep(0.05)
+
+        except Exception as e:
+            print(f"Error during close: {e}")
+
+    cmd_launch(args)
+
+
 def cmd_border(args):
     """Edit visual effects."""
     data = load_data()
@@ -194,6 +247,42 @@ def cmd_bar(args):
                 print(f"Removed bar {idx} (val: {val})")
             else:
                 print(f"Error: Index {idx} out of range")
+
+    save_data(data)
+
+
+def cmd_deadline(args):
+    """Manage global deadlines."""
+    data = load_data()
+    cls_data = get_active_class(data)
+    if "deadlines" not in cls_data:
+        cls_data["deadlines"] = []
+
+    deadlines = cls_data["deadlines"]
+
+    match args.action:
+        case "add":
+            new_task = {"task": args.task, "date": args.date}
+            deadlines.append(new_task)
+            print("Added new deadline:")
+            print(f"  Task: {args.task}")
+            print(f"  Date: {args.date}")
+        case "rm":
+            idx = int(args.id)
+            if 0 <= idx < len(deadlines):
+                removed = deadlines.pop(idx)
+                print(f"Removed deadline {idx}:")
+                print(f"  Task: {removed.get('task')}")
+                print(f"  Date: {removed.get('date')}")
+            else:
+                print(f"Error: Index {idx} out of range")
+        case "list":
+            if not deadlines:
+                print("No deadlines configured.")
+            else:
+                print(f"Total deadlines: {len(deadlines)}\n")
+                for i, item in enumerate(deadlines):
+                    print(f"[{i}] {item.get('task')} ({item.get('date')})")
 
     save_data(data)
 
@@ -312,7 +401,8 @@ def cmd_slide(args):
                     if hasattr(args, "text_align") and args.text_align:
                         new_slide["text_align"] = args.text_align
                 case "deadline":
-                    new_slide["date"] = args.date or datetime.now().isoformat()
+                    if args.date:
+                        new_slide["date"] = args.date
                     new_slide["title"] = args.title or "Deadline"
                 case "chart":
                     pass
@@ -404,7 +494,10 @@ def cmd_slide(args):
                             info.append(f"Content: {s.get('content')}")
                     elif stype == "deadline":
                         info.append(f"Title: {s.get('title')}")
-                        info.append(f"Date: {s.get('date')}")
+                        if s.get("date"):
+                            info.append(f"Date: {s.get('date')}")
+                        else:
+                            info.append("Source: Global Deadlines")
 
                     state_str = ""
                     if cls_data.get("state", {}).get("locked_slide") == i:
@@ -470,6 +563,14 @@ def main():
         formatter_class=ColoredHelpFormatter,
     )
     p_ghost.set_defaults(func=cmd_ghost)
+
+    # Invert
+    p_invert = subparsers.add_parser(
+        "invert",
+        help="Toggle color inversion (black <-> white).",
+        formatter_class=ColoredHelpFormatter,
+    )
+    p_invert.set_defaults(func=cmd_invert)
 
     # Border
     p_border = subparsers.add_parser(
@@ -552,6 +653,42 @@ def main():
     )
 
     p_bar.set_defaults(func=cmd_bar)
+
+    # Deadline
+    p_deadline = subparsers.add_parser(
+        "deadline",
+        help="Manage global deadlines.",
+        formatter_class=ColoredHelpFormatter,
+    )
+    deadline_subs = p_deadline.add_subparsers(dest="action", required=True)
+
+    # Deadline Add
+    p_deadline_add = deadline_subs.add_parser(
+        "add",
+        help="Add a new deadline",
+        formatter_class=ColoredHelpFormatter,
+    )
+    p_deadline_add.add_argument("--task", required=True, help="Task description")
+    p_deadline_add.add_argument(
+        "--date", required=True, help="Date in DD/MM/YYYY format"
+    )
+
+    # Deadline Remove
+    p_deadline_rm = deadline_subs.add_parser(
+        "rm",
+        help="Remove a deadline by ID",
+        formatter_class=ColoredHelpFormatter,
+    )
+    p_deadline_rm.add_argument("--id", required=True, type=int, help="Deadline ID")
+
+    # Deadline List
+    deadline_subs.add_parser(
+        "list",
+        help="List all deadlines",
+        formatter_class=ColoredHelpFormatter,
+    )
+
+    p_deadline.set_defaults(func=cmd_deadline)
 
     # Slide
     p_slide = subparsers.add_parser(

@@ -33,6 +33,11 @@ class RoughBoxWidget(QWidget):
             self.border_radius = vis.get("border_radius", 10.0)
             self.animation_enabled = vis.get("animation_enabled", True)
 
+            # Load color inversion setting
+            self.color_inverted = d.get("global_config", {}).get(
+                "color_inverted", False
+            )
+
             if not self.animation_enabled:
                 if self.anim_timer.isActive():
                     self.anim_timer.stop()
@@ -87,14 +92,21 @@ class RoughBoxWidget(QWidget):
         if radius is None:
             radius = getattr(self, "border_radius", 10.0)
 
+        inverted = getattr(self, "color_inverted", False)
+
         if color is None:
-            color = QColor("white")
+            color = QColor("black" if inverted else "white")
 
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+        # Invert background color
+        bg_color = (
+            QColor(255, 255, 255, bg_alpha) if inverted else QColor(0, 0, 0, bg_alpha)
+        )
+
         if fill and not rough:
-            painter.setBrush(QColor(0, 0, 0, bg_alpha))
+            painter.setBrush(bg_color)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(rect, radius, radius)
         elif not fill:
@@ -122,7 +134,7 @@ class RoughBoxWidget(QWidget):
         path = RoughBoxWidget.get_rough_path(rect, self.offset, roughness, radius)
 
         if fill:
-            painter.setBrush(QColor(0, 0, 0, bg_alpha))
+            painter.setBrush(bg_color)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawPath(path)
         else:
