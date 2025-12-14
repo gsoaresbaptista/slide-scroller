@@ -95,7 +95,7 @@ class RoughBoxWidget(QWidget):
         inverted = getattr(self, "color_inverted", False)
 
         if color is None:
-            color = QColor("black" if inverted else "white")
+            color = QColor("white")
 
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)

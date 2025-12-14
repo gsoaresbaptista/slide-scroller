@@ -760,9 +760,6 @@ def main():
         dest="text_align",
         help="Text alignment: 'center' (default) or 'left'.",
     )
-    grp_content.add_argument(
-        "--date", help="Target date in ISO format YYYY-MM-DD (Deadline slides only)."
-    )
 
     # Rename standard "options" group to "Common Options" for clarity
     for action_group in p_slide_add._action_groups:
